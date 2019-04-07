@@ -322,7 +322,6 @@ int truncate_file (char *filename, long truncLength) {
    } else {
        return 0;
    }
-   return 1;
 
 #else
 
@@ -335,10 +334,20 @@ int truncate_file (char *filename, long truncLength) {
     long actualRead;
     long byteCount;
     
-    newfilename = (char *)malloc(strlen(filename) + 5);
+	byteCount = strlen(filename);
+    newfilename = (char *)malloc(byteCount + 5);
 
     strcpy(newfilename,filename);
-    strcat(newfilename,".tmp");
+	if ((filename[byteCount-3] == 'T' || filename[byteCount-3] == 't') &&
+			(filename[byteCount-2] == 'M' || filename[byteCount-2] == 'm') &&
+			(filename[byteCount-1] == 'P' || filename[byteCount-1] == 'p')) {
+		strcat(newfilename,".TMP");
+	}
+	else {
+		newfilename[byteCount-3] = 'T';
+		newfilename[byteCount-2] = 'M';
+		newfilename[byteCount-1] = 'P';
+	}
 
     orig = fopen(filename,"rb");
     if (orig == NULL)

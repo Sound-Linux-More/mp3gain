@@ -1,8 +1,8 @@
 /*
  *  mp3gain.c - analyzes mp3 files, determines the perceived volume, 
- *              and adjusts the volume of the mp3 accordingly
+ *      and adjusts the volume of the mp3 accordingly
  *
- *  Copyright (C) 2003 Glen Sawyer
+ *  Copyright (C) 2001-2004 Glen Sawyer
  *
  *  This library is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU Lesser General Public
@@ -29,7 +29,7 @@
  *
  *  DLL-ification by John Zitterkopf (zitt@hotmail.com)
  *
- *  Additional tweaks by Artur Polaczynski
+ *  Additional tweaks by Artur Polaczynski, Mark Armbrust, and others
  */
 
 
@@ -678,9 +678,19 @@ int changeGain(char *filename, int leftgainchange, int rightgainchange) {
   if (UsingTemp) {
 	  fflush(stderr);
 	  fflush(stdout);
-	  outfilename = (char *)malloc(strlen(filename)+5);
+ 	  outlength = strlen(filename);
+ 	  outfilename = (char *)malloc(outlength+5);
 	  strcpy(outfilename,filename);
-	  strcat(outfilename,".tmp");
+ 	  if ((filename[outlength-3] == 'T' || filename[outlength-3] == 't') &&
+ 			(filename[outlength-2] == 'M' || filename[outlength-2] == 'm') &&
+ 			(filename[outlength-1] == 'P' || filename[outlength-1] == 'p')) {
+ 		  strcat(outfilename,".TMP");
+ 	  }
+ 	  else {
+ 		  outfilename[outlength-3] = 'T';
+ 		  outfilename[outlength-2] = 'M';
+ 		  outfilename[outlength-1] = 'P';
+ 	  }
 
       inf = fopen(filename,"r+b");
 
@@ -1171,7 +1181,7 @@ void wrapExplanation() {
 static
 void errUsage(char *progname) {
 	showVersion(progname);
-	fprintf(stderr,"copyright(c) 2003 by Glen Sawyer\n");
+	fprintf(stderr,"copyright(c) 2001-2004 by Glen Sawyer\n");
 	fprintf(stderr,"uses mpglib, which can be found at http://www.mpg123.de\n");
 	fprintf(stderr,"Usage: %s [options] <infile> [<infile 2> ...]\n",progname);
 	fprintf(stderr,"  --use %c? or %ch for a full list of options\n",SWITCH_CHAR,SWITCH_CHAR);
@@ -1185,7 +1195,7 @@ void errUsage(char *progname) {
 static
 void fullUsage(char *progname) {
 		showVersion(progname);
-		fprintf(stderr,"copyright(c) 2003 by Glen Sawyer\n");
+		fprintf(stderr,"copyright(c) 2001-2004 by Glen Sawyer\n");
 		fprintf(stderr,"uses mpglib, which can be found at http://www.mpg123.de\n");
 		fprintf(stderr,"Usage: %s [options] <infile> [<infile 2> ...]\n",progname);
 		fprintf(stderr,"options:\n");
@@ -1196,7 +1206,7 @@ void fullUsage(char *progname) {
 		fprintf(stderr,"\t          not Joint Stereo mp3s)\n");
 		fprintf(stderr,"\t%cl 1 <i> - apply gain i to channel 1 (right channel) of mp3\n",SWITCH_CHAR);
 		fprintf(stderr,"\t%cr - apply Track gain automatically (all files set to equal loudness)\n",SWITCH_CHAR);
-    	fprintf(stderr,"\t%ck - automatically lower Track gain to not clip audio\n",SWITCH_CHAR);
+		fprintf(stderr,"\t%ck - automatically lower Track/Album gain to not clip audio\n",SWITCH_CHAR);
 		fprintf(stderr,"\t%ca - apply Album gain automatically (files are all from the same\n",SWITCH_CHAR);
 		fprintf(stderr,"\t              album: a single gain change is applied to all files, so\n");
 		fprintf(stderr,"\t              their loudness relative to each other remains unchanged,\n");
@@ -1817,6 +1827,7 @@ int main(int argc, char **argv) {
               fflush(stdout);
 		  }
 		  else {
+			InitMP3(&mp);
 			if (tagInfo[mainloop].recalc == 0) {
 				maxsample = tagInfo[mainloop].trackPeak * 32768.0;
 				maxgain = tagInfo[mainloop].maxGain;
@@ -1829,7 +1840,6 @@ int main(int argc, char **argv) {
 				else {
 					maxsample = 0;
 				}
-				InitMP3(&mp);
 				BadLayer = 0;
 				LayerSet = Reckless;
 				maxgain = 0;
@@ -2091,7 +2101,7 @@ int main(int argc, char **argv) {
 							
 							if (intGainChange == 0) {
 								fprintf(stdout,"No changes to %s are necessary\n",argv[mainloop]);
-								if (tagInfo[mainloop].dirty) {
+								if (!skipTag && tagInfo[mainloop].dirty) {
 									fprintf(stdout,"...but tag needs update: Writing tag information for %s\n",argv[mainloop]);
 									WriteMP3GainAPETag(argv[mainloop],tagInfo + mainloop, fileTags + mainloop, saveTime);
 								}
@@ -2241,12 +2251,19 @@ int main(int argc, char **argv) {
 				}
 			}
 			else {
+/*MAA*/			if (autoClip) {
+/*MAA*/				int intMaxNoClipGain = (int)(floor(-4.0 * log10(maxmaxsample) / log10(2.0)));
+/*MAA*/				if (intGainChange > intMaxNoClipGain) {
+/*MAA*/					fprintf(stdout,"Applying auto-clipped mp3 gain change of %d to album\n(Original suggested gain was %d)\n",intMaxNoClipGain,intGainChange);
+/*MAA*/					intGainChange = intMaxNoClipGain;
+/*MAA*/				}
+/*MAA*/			}
 				for (mainloop = fileStart; mainloop < argc; mainloop++) {
 					if (fileok[mainloop]) {
 						goAhead = !0;
 						if (intGainChange == 0) {
 							fprintf(stdout,"\nNo changes to %s are necessary\n",argv[mainloop]);
-							if (tagInfo[mainloop].dirty) {
+							if (!skipTag && tagInfo[mainloop].dirty) {
 								fprintf(stdout,"...but tag needs update: Writing tag information for %s\n",argv[mainloop]);
 								WriteMP3GainAPETag(argv[mainloop],tagInfo + mainloop, fileTags + mainloop, saveTime);
 							}

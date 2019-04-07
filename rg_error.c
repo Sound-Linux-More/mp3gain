@@ -40,7 +40,7 @@ void DoError( char * localerrstr, MMRESULT localerrnum )
 {
 #ifndef asWIN32DLL
     gSuccess = 0;
-	fprintf(stdout, localerrstr);
+	fprintf(stdout, "%s", localerrstr);
 #else
 	//send message to DLL's parent
     mp3gainerr = localerrnum;

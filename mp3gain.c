@@ -845,7 +845,7 @@ int changeGain(char *filename AACGAIN_ARG(AACGainHandle aacH), int leftgainchang
 			if (singlechannel) {
 				if ((curframe[3] >> 6) & 0x01) { /* if mode is NOT stereo or dual channel */
 					passError( MP3GAIN_FILEFORMAT_NOTSUPPORTED, 2,
-                        filename, ": Can't adjust single channel for mono or joint stereo");
+                        filename, ": Can't adjust single channel for mono or joint stereo\n");
 					ok = 0;
 				}
 			}
@@ -1316,6 +1316,7 @@ void fullUsage(char *progname) {
 		fprintf(stderr,"\t          without doing any analysis (ONLY works for STEREO files,\n");
 		fprintf(stderr,"\t          not Joint Stereo)\n");
 		fprintf(stderr,"\t%cl 1 <i> - apply gain i to channel 1 (right channel)\n",SWITCH_CHAR);
+		fprintf(stderr,"\t%ce - skip Album analysis, even if multiple files listed\n",SWITCH_CHAR);
 		fprintf(stderr,"\t%cr - apply Track gain automatically (all files set to equal loudness)\n",SWITCH_CHAR);
 		fprintf(stderr,"\t%ck - automatically lower Track/Album gain to not clip audio\n",SWITCH_CHAR);
 		fprintf(stderr,"\t%ca - apply Album gain automatically (files are all from the same\n",SWITCH_CHAR);
@@ -1435,6 +1436,7 @@ int main(int argc, char **argv) {
 	int autoClip = 0;
 	int applyTrack = 0;
 	int applyAlbum = 0;
+	int analysisTrack = 0;
 	char analysisError = 0;
 	int fileStart;
 	int databaseFormat = 0;
@@ -1699,6 +1701,11 @@ int main(int argc, char **argv) {
 					maxAmpOnly = !0;
 					break;
 
+				case 'e':
+				case 'E':
+					analysisTrack = !0;
+					break;
+
 				default:
 					fprintf(stderr,"I don't recognize option %s\n",argv[i]);
 			}
@@ -1828,7 +1835,7 @@ int main(int argc, char **argv) {
 		}
 		for (mainloop = fileStart; mainloop < argc; mainloop++) {
 			if (!maxAmpOnly) { /* we don't care about these things if we're only looking for max amp */
-				if (argc - fileStart > 1 && !applyTrack) { /* only check album stuff if more than one file in the list */
+				if (argc - fileStart > 1 && !applyTrack && !analysisTrack) { /* only check album stuff if more than one file in the list */
 					if (!tagInfo[mainloop].haveAlbumGain) {
 						albumRecalc |= FULL_RECALC;
 					} else if (tagInfo[mainloop].albumGain != curAlbumGain) {
@@ -1839,7 +1846,7 @@ int main(int argc, char **argv) {
 					tagInfo[mainloop].recalc |= FULL_RECALC;
 				}
 			}
-			if (argc - fileStart > 1 && !applyTrack) { /* only check album stuff if more than one file in the list */
+			if (argc - fileStart > 1 && !applyTrack && !analysisTrack) { /* only check album stuff if more than one file in the list */
 				if (!tagInfo[mainloop].haveAlbumPeak) {
 					albumRecalc |= AMP_RECALC;
 				} else if (tagInfo[mainloop].albumPeak != curAlbumPeak) {
@@ -2032,6 +2039,10 @@ int main(int argc, char **argv) {
                   RemoveMP3GainID3Tag(argv[mainloop], saveTime);
               }
           }
+          if ((!QuietMode)&&(!databaseFormat))
+              fprintf(stderr,"Deleting tag info of %s...\n", argv[mainloop]);
+          if (databaseFormat)
+              fprintf(stdout,"%s\tNA\tNA\tNA\tNA\tNA\n", argv[mainloop]);
       }
 	  else {
 		  if (!databaseFormat)
@@ -2429,7 +2440,7 @@ int main(int argc, char **argv) {
 	  }
 	}
 
-	if ((numFiles > 0)&&(!applyTrack)) {
+	if ((numFiles > 0)&&(!applyTrack)&&(!analysisTrack)) {
 		if (albumRecalc & FULL_RECALC) {
 			if (maxAmpOnly)
 				dBchange = 0;

@@ -105,13 +105,13 @@ typedef signed int      Int32_t;
 #define YULE_FILTER     filterYule
 #define BUTTER_FILTER   filterButter
 #define RMS_PERCENTILE      0.95        // percentile which is louder than the proposed level
-#define MAX_SAMP_FREQ   96000.          // maximum allowed sample frequency [Hz]
-#define RMS_WINDOW_TIME     0.050       // Time slice size [s]
-#define STEPS_per_dB      100.          // Table entries per dB
-#define MAX_dB            120.          // Table entries for 0...MAX_dB (normal max. values are 70...80 dB)
+#define MAX_SAMP_FREQ_KHZ  96           // maximum allowed sample frequency [kHz]
+#define RMS_WINDOW_TIME_MS 50           // Time slice size [ms]
+#define STEPS_per_dB      100           // Table entries per dB
+#define MAX_dB            120           // Table entries for 0...MAX_dB (normal max. values are 70...80 dB)
 
 #define MAX_ORDER               (BUTTER_ORDER > YULE_ORDER ? BUTTER_ORDER : YULE_ORDER)
-#define MAX_SAMPLES_PER_WINDOW  (size_t) (MAX_SAMP_FREQ * RMS_WINDOW_TIME + 1)      // max. Samples per Time slice
+#define MAX_SAMPLES_PER_WINDOW  (size_t) (MAX_SAMP_FREQ_KHZ * RMS_WINDOW_TIME_MS + 1)      // max. Samples per Time slice
 #define PINK_REF                64.82 //298640883795                              // calibration value
 
 Float_t          linprebuf [MAX_ORDER * 2];
@@ -261,7 +261,7 @@ ResetSampleFrequency ( long samplefreq ) {
         default:    return INIT_GAIN_ANALYSIS_ERROR;
     }
 
-    sampleWindow = (int) ceil (samplefreq * RMS_WINDOW_TIME);
+    sampleWindow = (int) ceil (samplefreq * RMS_WINDOW_TIME_MS / 1000.);
 
     lsum         = 0.;
     rsum         = 0.;

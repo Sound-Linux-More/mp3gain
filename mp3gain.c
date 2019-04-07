@@ -82,6 +82,7 @@
 
 #include <fcntl.h>
 #include <string.h>
+#include <ctype.h>
 
 #ifndef asWIN32DLL
 
@@ -1472,7 +1473,7 @@ int main(int argc, char **argv) {
 	double dblGainChange;
 	int intGainChange = 0;
 	int intAlbumGainChange = 0;
-	int nprocsamp;
+	int nprocsamp = 0;
 	int first = 1;
 	int mainloop;
 	Float_t maxsample;
@@ -2126,9 +2127,24 @@ int main(int argc, char **argv) {
 #ifdef AACGAIN
             if (!aacH)
 #endif
-    			mh = mpg123_new(NULL, NULL);
-				mpg123_param(mh, MPG123_ADD_FLAGS, MPG123_FORCE_FLOAT, 0.);
-				mpg123_open_feed(mh);
+				/* We want mpg123 decoding to float only, and without fancy sample cutting, */
+				/* so that mp3gain and mpg123 agree on sample offsets. The padding should   */
+				/* have no big effect on gain anyway. Seek buffer needs to be disabled to   */
+				/* avoid MPG123_NEED_MORE after feeding the first frame.                    */
+				if(
+					!(mh = mpg123_new(NULL, &decodeSuccess)) ||
+					MPG123_OK != mpg123_param(mh, MPG123_ADD_FLAGS, MPG123_FORCE_FLOAT, 0.) ||
+					MPG123_OK != mpg123_param(mh, MPG123_REMOVE_FLAGS, MPG123_GAPLESS|MPG123_SEEKBUFFER, 0.)  ||
+					MPG123_OK != mpg123_param(mh, MPG123_VERBOSE, 10, 0.) ||
+#if (MPG123_API_VERSION >= 45)
+					MPG123_OK != mpg123_param(mh, MPG123_ADD_FLAGS, MPG123_NO_READAHEAD, 0.) ||
+#endif
+					MPG123_OK != mpg123_open_feed(mh)
+				) {
+					fprintf( stderr, "Failed to create/setup mpg123 handle: %s\n",
+						mh ? mpg123_strerror(mh) : mpg123_plain_strerror(decodeSuccess) );
+					exit(1);
+				}
 			if (tagInfo[mainloop].recalc == 0) {
 				maxsample = tagInfo[mainloop].trackPeak * 32767.0;
 				maxgain = tagInfo[mainloop].maxGain;
@@ -2319,20 +2335,53 @@ int main(int argc, char **argv) {
 											unsigned char *decout;
 											/* Get gain values directly, not from decoder. */
 											scanFrameGain();
-											mpg123_feed(mh, curframe, bytesinframe);
+											/* Feed the frames to libmpg123. As they are pre-parsed already, */
+											/* we tolerate no deviations. Calls for more data mean that the  */
+											/* mpg123 parser disagrees with us here, which is fatal.         */
+											/* It could also mean free format streams where you need to seek */
+											/* ahead. But: mp3gain will not work on those anyway. A rework   */
+											/* might just rely on libmpg123's parser and pull the raw data   */
+											/* from there. */
+											if(MPG123_OK != mpg123_feed(mh, curframe, bytesinframe)) {
+												fprintf(stderr, "Feeding mpg123 failed: %s\n", mpg123_strerror(mh));
+												exit(1);
+											}
+											/* We will check output format for each frame, as there is the */
+											/* case where mp3gain may think the channel count changed, but */
+											/* mpg123 does not (CVE-2017-14407). */
 											decodeSuccess = mpg123_decode_frame(mh, NULL, &decout, &decbytes);
 											if(decodeSuccess == MPG123_NEW_FORMAT)
-											{
+												decodeSuccess = mpg123_decode_frame(mh, NULL, &decout, &decbytes);
+											if(decodeSuccess == MPG123_OK) {
 												int enc = 0, channels = 0;
 												mpg123_getformat(mh, NULL, &channels, &enc);
+												/* Could also check that sampling freq matches ... */
 												if(enc != MPG123_ENC_FLOAT_32 || channels != nchan)
 												{
 													fprintf(stderr, "Unexpected format returned by libmpg123.\n");
 													exit(1);
 												}
-												decodeSuccess = mpg123_decode_frame(mh, NULL, &decout, &decbytes);
+											} else {
+#if (MPG123_API_VERSION < 45)
+												if(decodeSuccess == MPG123_NEED_MORE)
+												{
+													fprintf(stderr, "Delaying a frame in decoding with old libmpg123.\n");
+													decbytes = 0;
+												} else {
+#endif
+												fprintf(stderr, "Failed to decode MPEG frame: %s\n", mpg123_strerror(mh));
+												exit(1);
+#if (MPG123_API_VERSION < 45)
+												}
+#endif
 											}
 											nprocsamp = decbytes / sizeof(float) / nchan;
+											/* Paranoia triggered by CVE-2017-14407. */
+											if(nprocsamp > sizeof(lsamples)/sizeof(Float_t))
+											{
+												fprintf(stderr, "Too many samples in libmpg123 output.\n");
+												exit(1);
+											}
 											convert_decout((float*)decout, nprocsamp, nchan, lsamples, rsamples);
 											maxsample = find_maxsample((float*)decout, nprocsamp*nchan, maxsample);
 #ifdef WIN32

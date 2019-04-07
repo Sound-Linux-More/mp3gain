@@ -4,9 +4,9 @@
 # Mike Oliphant (oliphant@gtk.org)
 #
 
-CC=     gcc
+CC?= gcc
 
-CFLAGS= -Wall -O2 -DHAVE_MEMCPY
+CFLAGS+= -Wall -DHAVE_MEMCPY
 
 # all known MS Windows OS define the ComSpec environment variable
 ifdef ComSpec
@@ -51,7 +51,7 @@ $(RC_OBJ):
 	$(WINDRES) $(RC_OBJ:.o=.rc) $(RC_OBJ)
 
 mp3gain: $(RC_OBJ) $(OBJS)
-	$(CC) -o mp3gain $(OBJS) $(RC_OBJ) $(LIBS)
+	$(CC) $(LDFLAGS) -o mp3gain $(OBJS) $(RC_OBJ) $(LIBS)
 ifeq ($(OSTYPE),beos)
 	mimeset -f mp3gain$(EXE_EXT)
 endif

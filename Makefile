@@ -2,7 +2,6 @@
 # Quick 'n dirty unix Makefile
 #
 # Mike Oliphant (oliphant@gtk.org)
-# updated by Zsolt Branyiczy (brazso@zematix.hu) for win (mingw32)
 #
 
 CC=     gcc
@@ -11,12 +10,12 @@ CFLAGS= -Wall -O2 -DHAVE_MEMCPY
 
 # all known MS Windows OS define the ComSpec environment variable
 ifdef ComSpec
-	ifndef OSTYPE
-		OSTYPE = win
-	endif
-	EXE_EXT = .exe
+ifndef OSTYPE
+OSTYPE = win
+endif
+EXE_EXT = .exe
 else
-	EXE_EXT =
+EXE_EXT =
 endif
 
 ifneq ($(OSTYPE),beos)
@@ -57,15 +56,31 @@ ifeq ($(OSTYPE),beos)
 	mimeset -f mp3gain$(EXE_EXT)
 endif
 
-install:
+install: mp3gain
 ifneq ($(OSTYPE),win)
 	cp -p mp3gain$(EXE_EXT) "$(INSTALL_PATH)"
-	ifeq ($(OSTYPE),beos)
-		mimeset -f "$(INSTALL_PATH)/mp3gain$(EXE_EXT)"
-	endif
+ifeq ($(OSTYPE),beos)
+	mimeset -f "$(INSTALL_PATH)/mp3gain$(EXE_EXT)"
+endif
 else
 	@echo install target is not implemented on windows
 endif
 
+uninstall:
+ifneq ($(OSTYPE),win)
+	-rm -f "$(INSTALL_PATH)/mp3gain$(EXE_EXT)"
+else
+	@echo uninstall target is not implemented on windows
+endif
+
 clean: 
-	-rm -rf mp3gain$(EXE_EXT) $(OBJS) $(RC_OBJ)
+	-rm -rf mp3gain$(EXE_EXT) mp3gain.zip $(OBJS) $(RC_OBJ)
+
+dist:   clean
+ifneq ($(OSTYPE),win)
+ifneq ($(OSTYPE),beos)
+	zip -r mp3gain.zip * -x "CVS/*" "*/CVS/*"
+endif
+else
+	@echo dist target is not implemented on windows and beos
+endif

@@ -1,4 +1,4 @@
-/* $Id: tabinit.c,v 1.11 2001/01/05 15:20:34 aleidinger Exp $ */
+/* $Id: tabinit.c,v 1.2 2003/08/12 00:02:55 snelg Exp $ */
 
 #ifdef HAVE_CONFIG_H
 # include <config.h>

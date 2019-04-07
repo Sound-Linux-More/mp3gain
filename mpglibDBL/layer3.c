@@ -5,7 +5,7 @@
  * All rights reserved. See also 'README'
  */ 
 
-/* $Id: layer3.c,v 1.43 2001/06/04 10:01:35 afaber Exp $ */
+/* $Id: layer3.c,v 1.3 2003/08/12 00:02:55 snelg Exp $ */
 
 #ifdef HAVE_CONFIG_H
 # include <config.h>

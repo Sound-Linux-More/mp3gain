@@ -32,6 +32,7 @@ struct MP3GainTagInfo {
        the "global gain" fields in the frames of the mp3 file
      */
 	int dirty; /* flag if data changes after loaded from file */
+  int recalc; /* Used to signal if recalculation is required */
 };
 
 struct APEFieldStruct {

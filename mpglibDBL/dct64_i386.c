@@ -6,7 +6,7 @@
  * even for Intel processors.
  */
 
-/* $Id: dct64_i386.c,v 1.9 2001/01/05 15:20:34 aleidinger Exp $ */
+/* $Id: dct64_i386.c,v 1.2 2003/08/12 00:02:55 snelg Exp $ */
 
 #ifdef HAVE_CONFIG_H
 #include <config.h>

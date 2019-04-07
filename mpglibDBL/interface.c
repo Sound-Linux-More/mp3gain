@@ -1,4 +1,4 @@
-/* $Id: interface.c,v 1.37 2001/08/26 18:38:43 markt Exp $ */
+/* $Id: interface.c,v 1.4 2004/03/19 21:11:24 snelg Exp $ */
 
 #ifdef HAVE_CONFIG_H
 # include <config.h>
@@ -195,7 +195,7 @@ void copy_mp(PMPSTR mp,int size,unsigned char *ptr)
   }
 }
 
-char VBRTag[4] = "Xing";
+char VBRTag[5] = "Xing";
 
 static int ExtractI4(unsigned char *buf)
 {

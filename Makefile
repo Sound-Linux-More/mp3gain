@@ -6,7 +6,7 @@
 
 CC=     gcc
 
-CFLAGS= -Wall
+CFLAGS= -Wall -O3 -DHAVE_MEMCPY
 
 ifneq ($(OSTYPE),beos)
 INSTALL_PATH= /usr/local/bin
@@ -26,6 +26,8 @@ OBJS=	mp3gain.o apetag.o gain_analysis.o rg_error.o \
 	mpglibDBL/common.o mpglibDBL/dct64_i386.o \
 	mpglibDBL/decode_i386.o mpglibDBL/interface.o \
 	mpglibDBL/layer3.o mpglibDBL/tabinit.o
+
+all: mp3gain
 
 mp3gain: $(OBJS)
 	$(CC) -o mp3gain $(OBJS) $(LIBS)

@@ -139,7 +139,9 @@ static Uint32_t  B [(size_t)(STEPS_per_dB * MAX_dB)];
 // [0] 48 kHz, [1] 44.1 kHz, [2] 32 kHz, [3] 24 kHz, [4] 22050 Hz, [5] 16 kHz, [6] 12 kHz, [7] is 11025 Hz, [8] 8 kHz
 
 #ifdef WIN32
+#ifndef __GNUC__
 #pragma warning ( disable : 4305 )
+#endif
 #endif
 
 static const Float_t ABYule[9][2*YULE_ORDER + 1] = {
@@ -168,7 +170,9 @@ static const Float_t ABButter[9][2*BUTTER_ORDER + 1] = {
 
 
 #ifdef WIN32
+#ifndef __GNUC__
 #pragma warning ( default : 4305 )
+#endif
 #endif
 
 // When calling these filter procedures, make sure that ip[-order] and op[-order] point to real data!
@@ -179,11 +183,9 @@ static const Float_t ABButter[9][2*BUTTER_ORDER + 1] = {
 static void
 filterYule (const Float_t* input, Float_t* output, size_t nSamples, const Float_t* kernel)
 {
-    //register Float_t  y;
 
     while (nSamples--) {
-        //y =  // COMMENT OUT the "*output++ = " line below if you uncomment this line
-        *output++ =  
+        *output =  
            input [0]  * kernel[0]
          - output[-1] * kernel[1]
          + input [-1] * kernel[2]
@@ -205,25 +207,24 @@ filterYule (const Float_t* input, Float_t* output, size_t nSamples, const Float_
          + input [-9] * kernel[18]
          - output[-10]* kernel[19]
          + input [-10]* kernel[20];
+        ++output;
         ++input;
-        //*output++ = y;
     }
 }
 
 static void
 filterButter (const Float_t* input, Float_t* output, size_t nSamples, const Float_t* kernel)
-{   //register Float_t  y;
+{   
 
     while (nSamples--) {
-        //y =  // COMMENT OUT the "*output++ = " line below if you uncomment this line
-        *output++ =  
+        *output =  
            input [0]  * kernel[0]
          - output[-1] * kernel[1]
          + input [-1] * kernel[2]
          - output[-2] * kernel[3]
          + input [-2] * kernel[4];
+        ++output;
         ++input;
-        //*output++ = y;
     }
 }
 
@@ -390,7 +391,7 @@ AnalyzeSamples ( const Float_t* left_samples, const Float_t* right_samples, size
             double  val  = STEPS_per_dB * 10. * log10 ( (lsum+rsum) / totsamp * 0.5 + 1.e-37 );
             int     ival = (int) val;
             if ( ival <                     0 ) ival = 0;
-            if ( ival >= sizeof(A)/sizeof(*A) ) ival = sizeof(A)/sizeof(*A) - 1;
+            if ( ival >= (int)(sizeof(A)/sizeof(*A)) ) ival = sizeof(A)/sizeof(*A) - 1;
             A [ival]++;
             lsum = rsum = 0.;
             memmove ( loutbuf , loutbuf  + totsamp, MAX_ORDER * sizeof(Float_t) );
@@ -448,7 +449,7 @@ GetTitleGain ( void )
 
     retval = analyzeResult ( A, sizeof(A)/sizeof(*A) );
 
-    for ( i = 0; i < sizeof(A)/sizeof(*A); i++ ) {
+    for ( i = 0; i < (int)(sizeof(A)/sizeof(*A)); i++ ) {
         B[i] += A[i];
         A[i]  = 0;
     }

@@ -25,13 +25,15 @@ int ReadMP3ID3v1Tag(FILE *fi, unsigned char **tagbuff, long *tag_offset) {
     //we have tag, so store it in buffer
 	if (*tagbuff)
 		free(*tagbuff);
-	*tagbuff = malloc(128);
+	*tagbuff = (unsigned char *)malloc(128);
     memcpy(*tagbuff,tmp,128);
     *tag_offset -= 128;
 
     return 1;
 }
 
+
+/*
 static int Lyrics3GetNumber5 ( const unsigned char* string )
 {
 	return ( string[0] - '0') * 10000 +
@@ -40,6 +42,8 @@ static int Lyrics3GetNumber5 ( const unsigned char* string )
 		   ( string[3] - '0') * 10 +
 		   ( string[4] - '0') * 1;
 }
+*/
+
 
 static int Lyrics3GetNumber6 ( const unsigned char* string )
 {
@@ -78,7 +82,7 @@ static int ReadMP3Lyrics3v2Tag ( FILE *fp, unsigned char **tagbuff, unsigned lon
     //if we have id3-tag, put it in the id3tagbuff
 	if (*id3tagbuff)
 		free(*id3tagbuff);
-	*id3tagbuff = malloc(128);
+	*id3tagbuff = (unsigned char *)malloc(128);
     memcpy(*id3tagbuff,tmpid3,128);
     if ( fseek (fp, *tag_offset - 128 - sizeof (T), SEEK_SET) ) return 0;
     if ( fread (&T, 1, sizeof (T), fp) != sizeof (T) ) return 0;
@@ -154,7 +158,7 @@ int ReadMP3APETag ( FILE *fp,  struct MP3GainTagInfo *info, struct APETagStruct 
     int                         is_info;
 	char						tmpString[10];
 
-	if ( *tag_offset < sizeof(T) ) return 0;
+	if ( *tag_offset < (long)(sizeof(T)) ) return 0;
     if ( fseek(fp,*tag_offset - sizeof(T),SEEK_SET) ) return 0;
     if ( fread (&T, 1, sizeof(T), fp) != sizeof(T) ) return 0;
     if ( memcmp (T.ID, "APETAGEX", sizeof(T.ID)) ) return 0;
@@ -173,9 +177,9 @@ int ReadMP3APETag ( FILE *fp,  struct MP3GainTagInfo *info, struct APETagStruct 
             free((*apeTag)->otherFields);
 		free(*apeTag);
     }
-	*apeTag = malloc(sizeof(struct APETagStruct));
+	*apeTag = (struct APETagStruct *)malloc(sizeof(struct APETagStruct));
 	(*apeTag)->haveHeader = 0;
-	(*apeTag)->otherFields = malloc(TagLen - sizeof(T));
+	(*apeTag)->otherFields = (unsigned char *)malloc(TagLen - sizeof(T));
     (*apeTag)->otherFieldsSize = 0;
 
 	memcpy(&((*apeTag)->footer),&T,sizeof(T));
@@ -331,7 +335,7 @@ int truncate_file (char *filename, long truncLength) {
     long actualRead;
     long byteCount;
     
-    newfilename = malloc(strlen(filename) + 5);
+    newfilename = (char *)malloc(strlen(filename) + 5);
 
     strcpy(newfilename,filename);
     strcat(newfilename,".tmp");
@@ -427,8 +431,8 @@ int WriteMP3GainAPETag (char *filename, struct MP3GainTagInfo *info, struct File
 	FILE *outputFile;
 	unsigned long newTagLength;
 	unsigned long newTagCount;
-	unsigned char *newFieldData;
-	unsigned char *mp3gainTagData;
+	char *newFieldData;
+	char *mp3gainTagData;
 	unsigned long mp3gainTagLength;
 	char valueString[100];
 
@@ -487,7 +491,7 @@ int WriteMP3GainAPETag (char *filename, struct MP3GainTagInfo *info, struct File
 
 	newTagLength += mp3gainTagLength;
 
-	newFieldData = malloc(newTagLength - (sizeof(newFooter) + sizeof(newHeader)));
+	newFieldData = (char *)malloc(newTagLength - (sizeof(newFooter) + sizeof(newHeader)));
 	mp3gainTagData = newFieldData;
 
 	if (fileTags->apeTag) {

@@ -303,6 +303,8 @@ static struct ID3v2FrameStruct * id3_make_frame(const char *frameid, const char 
 				break;
 			default:
 				va_end(ap);
+				free(frame->data);
+				free(frame);
 				return NULL;
 		}
 	}
@@ -418,6 +420,71 @@ static struct ID3v2FrameStruct * id3_make_rva2_frame(int is_album_gain, double g
 	}
 }
 
+
+/**
+ * Decode an APEv2/Vorbis-style TXXX frame, matching
+ * /REPLAYGAIN_(ALBUM|TRACK)_(GAIN|PEAK)/ case-insensitively.
+ *
+ * Store gain information in the info structure, unless info == NULL.
+ * Return 1 if the frame is one of our TXXX frames, 0 otherwise.
+ */
+static int id3_decode_txxx_frame(const struct ID3v2FrameStruct *frame, struct MP3GainTagInfo *info)
+{
+	unsigned long p, k;
+	char buf[64];
+	const char *value;
+
+	/* Ignore non-TXXX frames. */
+	if (memcmp(frame->frameid, "TXXX", 4) != 0)
+		return 0;
+
+	p = frame->hskip;
+
+	/* Check text encoding; we understand only 0 (ISO-8859-1) and 3 (UTF-8). */
+	if (p >= frame->len || (frame->data[p] != 0 && frame->data[p] != 3))
+		return 0;
+	p++;
+
+	/* Copy character data to temporary buffer. */
+	k = (frame->len - p + 1 < sizeof(buf)) ? (frame->len - p) : (sizeof(buf) - 2);
+	memcpy(buf, frame->data + p, k);
+	buf[k] = '\0';		/* terminate the value string */
+	buf[k+1] = '\0';	/* ensure buf contains two terminated strings, even for invalid frame data */
+	value = buf + strlen(buf) + 1;
+
+	/* Check identification string. */
+	if (strcasecmp(buf, "REPLAYGAIN_ALBUM_GAIN") == 0) {
+                if (info) {
+			info->haveAlbumGain = !0;
+			info->albumGain = atof(value);
+		}
+		return 1;
+	} else if (strcasecmp(buf, "REPLAYGAIN_TRACK_GAIN") == 0) {
+                if (info) {
+			info->haveTrackGain = !0;
+			info->trackGain = atof(value);
+		}
+		return 1;
+	} else if (strcasecmp(buf, "REPLAYGAIN_ALBUM_PEAK") == 0) {
+                if (info) {
+			info->haveAlbumPeak = !0;
+			info->albumPeak = atof(value);
+		}
+		return 1;
+	} else if (strcasecmp(buf, "REPLAYGAIN_TRACK_PEAK") == 0) {
+                if (info) {
+			info->haveTrackPeak = !0;
+			info->trackPeak = atof(value);
+		}
+		return 1;
+	} else if (strcasecmp(buf, "REPLAYGAIN_REFERENCE_LOUDNESS") == 0) {
+		/* we derive no information from this at the moment, but
+		 * we do want to delete this frame if re-writing */
+		return 1;
+	}
+
+	return 0;
+}
 
 /**
  * Decode a mp3gain-specific TXXX frame, either "MP3GAIN_UNDO" or
@@ -823,7 +890,7 @@ static int id3_write_tag(FILE *f, struct ID3v2TagStruct *tag)
 static int id3_parse_v1_tag(FILE *f, struct ID3v2TagStruct *tag)
 {
 	unsigned char buf[128];
-	char sbuf[32];
+	char sbuf[32],*p;
 
 	struct ID3v2FrameStruct **pframe;
 
@@ -850,6 +917,8 @@ static int id3_parse_v1_tag(FILE *f, struct ID3v2TagStruct *tag)
 	if (buf[3] != '\0') {
 		memcpy(sbuf, buf + 3, 30);
 		sbuf[30] = '\0';
+		/* get rid of trailing spaces */
+		for(p=sbuf+29; *p==' ' && p>=sbuf; *p--='\0');
 		*pframe = id3_make_frame("TIT2", "bs", 0, sbuf);
 		pframe = &((*pframe)->next);
 	}
@@ -858,6 +927,9 @@ static int id3_parse_v1_tag(FILE *f, struct ID3v2TagStruct *tag)
 	if (buf[33] != '\0') {
 		memcpy(sbuf, buf + 33, 30);
 		sbuf[30] = '\0';
+		/* get rid of trailing spaces */
+		for(p=sbuf+29; *p==' ' && p>=sbuf; *p--='\0');
+		DBG(("fixed v1 artist: \"%s\"\n",sbuf));
 		*pframe = id3_make_frame("TPE1", "bs", 0, sbuf);
 		pframe = &((*pframe)->next);
 	}
@@ -866,6 +938,8 @@ static int id3_parse_v1_tag(FILE *f, struct ID3v2TagStruct *tag)
 	if (buf[63] != '\0') {
 		memcpy(sbuf, buf + 63, 30);
 		sbuf[30] = '\0';
+		/* get rid of trailing spaces */
+		for(p=sbuf+29; *p==' ' && p>=sbuf; *p--='\0');
 		*pframe = id3_make_frame("TALB", "bs", 0, sbuf);
 		pframe = &((*pframe)->next);
 	}
@@ -885,6 +959,8 @@ static int id3_parse_v1_tag(FILE *f, struct ID3v2TagStruct *tag)
 	if (buf[97] != '\0') {
 		memcpy(sbuf, buf + 97, 30);
 		sbuf[30] = '\0';
+		/* get rid of trailing spaces */
+		for(p=sbuf+29; *p==' ' && p>=sbuf; *p--='\0');
 		/* assume ISO-8859-1, unknown language, no description */
 		*pframe = id3_make_frame("COMM", "bssbs", 0, "XXX", "", 0, sbuf);
 		pframe = &((*pframe)->next);
@@ -1078,6 +1154,7 @@ int ReadMP3GainID3Tag(char *filename, struct MP3GainTagInfo *info)
 		frame = tag.frames;
 		while (frame) {
 			id3_decode_rva2_frame(frame, info);
+			id3_decode_txxx_frame(frame, info);
 			id3_decode_mp3gain_frame(frame, info);
 			frame = frame->next;
 		}
@@ -1148,6 +1225,7 @@ int WriteMP3GainID3Tag(char *filename, struct MP3GainTagInfo *info, int saveTime
 	pframe = &(tag.frames);
 	while ((frame = *pframe)) {
 		if (id3_decode_rva2_frame(frame, NULL) == 1 ||
+		    id3_decode_txxx_frame(frame, NULL) == 1 ||
 		    id3_decode_mp3gain_frame(frame, NULL) == 1) {
 			/* This is a ReplayGain frame; kill it. */
 			need_update = 1;
@@ -1159,16 +1237,51 @@ int WriteMP3GainID3Tag(char *filename, struct MP3GainTagInfo *info, int saveTime
 		}
 	}
 
-	/* Append new replaygain frames. */
+	/* Append new replaygain frames. The TXXX versions are lower-case,
+	 * because that's what Winamp wants... */
+
+	if (info->haveTrackGain || info->haveTrackPeak ||
+	    info->haveAlbumGain || info->haveAlbumPeak) {
+		need_update = 1;
+		frame = id3_make_frame("TXXX", "bsbs", 0, "replaygain_reference_loudness", 0, "89.0 dB");
+		*pframe = frame;
+		pframe = &(frame->next);
+	}
+
 	if (info->haveTrackGain) {
 		need_update = 1;
 		frame = id3_make_rva2_frame(0, info->trackGain, info->haveTrackPeak, info->trackPeak);
 		*pframe = frame;
 		pframe = &(frame->next);
+
+		sprintf(sbuf, "%-+9.6f dB", info->trackGain);
+		frame = id3_make_frame("TXXX", "bsbs", 0, "replaygain_track_gain", 0, sbuf);
+		*pframe = frame;
+		pframe = &(frame->next);
 	}
+	if (info->haveTrackPeak) {
+		need_update = 1;
+		sprintf(sbuf, "%-8.6f", info->trackPeak);
+		frame = id3_make_frame("TXXX", "bsbs", 0, "replaygain_track_peak", 0, sbuf);
+		*pframe = frame;
+		pframe = &(frame->next);
+	}
+
 	if (info->haveAlbumGain) {
 		need_update = 1;
 		frame = id3_make_rva2_frame(1, info->albumGain, info->haveAlbumPeak, info->albumPeak);
+		*pframe = frame;
+		pframe = &(frame->next);
+
+		sprintf(sbuf, "%-+9.6f dB", info->albumGain);
+		frame = id3_make_frame("TXXX", "bsbs", 0, "replaygain_album_gain", 0, sbuf);
+		*pframe = frame;
+		pframe = &(frame->next);
+	}
+	if (info->haveAlbumPeak) {
+		need_update = 1;
+		sprintf(sbuf, "%-8.6f", info->albumPeak);
+		frame = id3_make_frame("TXXX", "bsbs", 0, "replaygain_album_peak", 0, sbuf);
 		*pframe = frame;
 		pframe = &(frame->next);
 	}

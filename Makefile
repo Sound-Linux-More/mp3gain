@@ -32,15 +32,16 @@ else
 CFLAGS+= -DHAVE_MEMCPY
 endif
 
+# Could ask pkg-config for libmpg123 flags/libs.
+LIBS+= -lmpg123
+
 ifeq ($(OSTYPE),win)
 # gnu windows resource compiler
 WINDRES = windres
 endif
 
-OBJS=	mp3gain.o apetag.o id3tag.o gain_analysis.o rg_error.o \
-	mpglibDBL/common.o mpglibDBL/dct64_i386.o \
-	mpglibDBL/decode_i386.o mpglibDBL/interface.o \
-	mpglibDBL/layer3.o mpglibDBL/tabinit.o
+OBJS=	mp3gain.o apetag.o id3tag.o gain_analysis.o rg_error.o
+
 ifeq ($(OSTYPE),win)
 RC_OBJ = VerInfo.o
 endif

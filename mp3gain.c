@@ -83,14 +83,18 @@
 #include <fcntl.h>
 #include <string.h>
 
-/* I tweaked the mpglib library just a bit to spit out the raw
- * decoded double values, instead of rounding them to 16-bit integers.
- * Hence the "mpglibDBL" directory
- */
-
 #ifndef asWIN32DLL
-#include "mpglibDBL/interface.h"
 
+/* Was in lame.h. */
+#include <stdarg.h>
+
+/* Used to be part of decode_i386. */
+unsigned char maxAmpOnly;
+/* layer3.c */
+unsigned char *minGain;
+unsigned char *maxGain;
+
+#include <mpg123.h>
 #include "gain_analysis.h"
 #endif
 
@@ -129,7 +133,7 @@ unsigned char buffer[BUFFERSIZE];
 
 int writeself = 0;
 int QuietMode = 0;
-int UsingTemp = 0;
+int UsingTemp = 1;
 int NowWriting = 0;
 double lastfreq = -1.0;
 
@@ -143,6 +147,7 @@ int undoChanges = 0;
 int skipTag = 0;
 int deleteTag = 0;
 int forceRecalculateTag = 0;
+int forceUpdateTag = 0;
 int checkTagOnly = 0;
 static int useId3 = 0;
 
@@ -761,6 +766,8 @@ int changeGain(char *filename AACGAIN_ARG(AACGainHandle aacH), int leftgainchang
 			inf = NULL;
             passError(MP3GAIN_UNSPECIFED_ERROR, 3,
                 "\nCan't open ", outfilename, " for temp writing\n");
+			NowWriting = 0;
+			free(outfilename);
 			return M3G_ERR_CANT_MAKE_TMP;
 		} 
  
@@ -771,10 +778,14 @@ int changeGain(char *filename AACGAIN_ARG(AACGainHandle aacH), int leftgainchang
   }
 
   if (inf == NULL) {
-	  if (UsingTemp && (outf != NULL))
+	  if (UsingTemp && (outf != NULL)) {
 		  fclose(outf);
+		  outf = NULL;
+	  }
 	  passError( MP3GAIN_UNSPECIFED_ERROR, 3,
           "\nCan't open ", filename, " for modifying\n");
+	  NowWriting = 0;
+	  free(outfilename);
 	  return M3G_ERR_CANT_MODIFY_FILE;
   }
   else {
@@ -967,6 +978,7 @@ int changeGain(char *filename AACGAIN_ARG(AACGainHandle aacH), int leftgainchang
 		fclose(inf);
 		if (UsingTemp) {
 			fclose(outf);
+			outf = NULL;
 			deleteFile(outfilename);
 			free(outfilename);
 			passError(MP3GAIN_CANCELLED,2,"Cancelled processing of ",filename);
@@ -976,6 +988,7 @@ int changeGain(char *filename AACGAIN_ARG(AACGainHandle aacH), int leftgainchang
 		}
 		if (saveTime) 
 		  fileTime(filename, setStoredTime);		
+		NowWriting = 0;
 		return;
 	}
 #endif
@@ -1040,12 +1053,14 @@ int changeGain(char *filename AACGAIN_ARG(AACGainHandle aacH), int leftgainchang
 		fclose(outf);
 		fclose(inf);
 		inf = NULL;
+		outf = NULL;
         
         if (outlength != inlength) {
             deleteFile(outfilename);
 			passError( MP3GAIN_UNSPECIFED_ERROR, 3,
                 "Not enough temp space on disk to modify ", filename, 
-                "\nEither free some space, or do not use \"temp file\" option\n");
+                "\nEither free some space, or switch off \"temp file\" option with -T\n");
+            NowWriting = 0;
             return M3G_ERR_NOT_ENOUGH_TMP_SPACE;
         }
         else {
@@ -1054,6 +1069,7 @@ int changeGain(char *filename AACGAIN_ARG(AACGainHandle aacH), int leftgainchang
 				deleteFile(outfilename); //try to delete tmp file
 				passError( MP3GAIN_UNSPECIFED_ERROR, 3,
                     "Can't open ", filename, " for modifying\n");
+			    NowWriting = 0;
 			    return M3G_ERR_CANT_MODIFY_FILE;
 		    }
 		    if (moveFile(outfilename, filename)) {
@@ -1062,6 +1078,7 @@ int changeGain(char *filename AACGAIN_ARG(AACGainHandle aacH), int leftgainchang
                     "\nThe mp3 was correctly modified, but you will need to re-name ", 
                     outfilename, " to ", filename, 
                     " yourself.\n");
+		            NowWriting = 0;
 			    return M3G_ERR_RENAME_TMP;
 		    };
 		    if (saveTime)
@@ -1203,7 +1220,7 @@ void changeGainAndTag(char *filename AACGAIN_ARG(AACGainHandle aacH), int leftga
 static 
 int queryUserForClipping(char * argv_mainloop,int intGainChange)
 {
-	char ch;
+	int ch;
 
 	fprintf(stderr,"\nWARNING: %s may clip with mp3 gain change %d\n",argv_mainloop,intGainChange);
 	ch = 0;
@@ -1213,6 +1230,9 @@ int queryUserForClipping(char * argv_mainloop,int intGainChange)
 		fprintf(stderr,"Make change? [y/n]:");
 		fflush(stderr);
 		ch = getchar();
+		if (ch == EOF) {
+			ch='N';
+		}
 		ch = toupper(ch);
 	}
 	if (ch == 'N')
@@ -1327,10 +1347,11 @@ void fullUsage(char *progname) {
 		fprintf(stderr,"\t%cd <n> - modify suggested dB gain by floating-point n\n",SWITCH_CHAR);
 		fprintf(stderr,"\t%cc - ignore clipping warning when applying gain\n",SWITCH_CHAR);
 		fprintf(stderr,"\t%co - output is a database-friendly tab-delimited list\n",SWITCH_CHAR);
-		fprintf(stderr,"\t%ct - writes modified data to temp file, then deletes original\n",SWITCH_CHAR);
-		fprintf(stderr,"\t     instead of modifying bytes in original file\n");
+		fprintf(stderr,"\t%ct - mp3gain writes modified mp3 to temp file, then deletes original \n",SWITCH_CHAR);
+		fprintf(stderr,"\t     instead of modifying bytes in original file (default)\n");
+		fprintf(stderr,"\t%cT - mp3gain directly modifies mp3 file (opposite of %ct)\n",SWITCH_CHAR,SWITCH_CHAR);
 #ifdef AACGAIN
-		fprintf(stderr,"\t     A temp file is always used for AAC files.\n");
+		fprintf(stderr,"\t     Ignored for AAC files.\n");
 #endif
 		fprintf(stderr,"\t%cq - Quiet mode: no status messages\n",SWITCH_CHAR);
 		fprintf(stderr,"\t%cp - Preserve original file timestamp\n",SWITCH_CHAR);
@@ -1404,13 +1425,40 @@ void dumpTaginfo(struct MP3GainTagInfo *info) {
   fprintf(stderr, "haveMinMaxGain      %d  min %d  max %d\n",info->haveMinMaxGain, info->minGain, info->maxGain);
 }
 
+void convert_decout(float *decout, int nprocsamp, int nchan, Float_t *lsamples, Float_t *rsamples)
+{
+	int n;
+	if(nchan == 1)
+		for(n=0; n<nprocsamp; ++n)
+			*lsamples++ = 32768.0* *decout++;
+	else if(nchan == 2)
+		for(n=0; n<nprocsamp; ++n)
+		{
+			*lsamples++ = 32767.0 * *decout++;
+			*rsamples++ = 32767.0 * *decout++;
+		}
+}
+
+float find_maxsample(float *decout, int nsamples, float maxsample)
+{
+	int n;
+	for(n=0; n<nsamples; ++n)
+	{
+		float val = *decout++ * 32768.0;
+		if(val < 0)
+			val = -val;
+		if(val > maxsample)
+			maxsample = val;
+	}
+	return maxsample;
+}
 
 #ifdef WIN32
 int __cdecl main(int argc, char **argv) { /*make sure this one is standard C declaration*/
 #else
 int main(int argc, char **argv) {
 #endif
-	MPSTR mp;
+	mpg123_handle *mh = NULL;
 	unsigned long ok;
 	int mode;
 	int crcflag;
@@ -1466,6 +1514,7 @@ int main(int argc, char **argv) {
     AACGainHandle *aacInfo;
 #endif
 
+	mpg123_init();
     gSuccess = 1;
 
     if (argc < 2) {
@@ -1656,6 +1705,10 @@ int main(int argc, char **argv) {
                         case 'S':
                             skipTag = !0;
                             break;
+			case 'u':
+			case 'U':
+			    forceUpdateTag = !0;
+			    break;
                         case 'r':
                         case 'R':
                             forceRecalculateTag = !0;
@@ -1675,8 +1728,11 @@ int main(int argc, char **argv) {
                     break;
 
 				case 't':
-				case 'T':
 					UsingTemp = !0;
+					break;
+
+				case 'T':
+					UsingTemp = 0;
 					break;
 
 				case 'u':
@@ -1742,7 +1798,7 @@ int main(int argc, char **argv) {
       fileTags[mainloop].apeTag = NULL;
 	  fileTags[mainloop].lyrics3tag = NULL;
 	  fileTags[mainloop].id31tag = NULL;
-	  tagInfo[mainloop].dirty = 0;
+	  tagInfo[mainloop].dirty = forceUpdateTag;
 	  tagInfo[mainloop].haveAlbumGain = 0;
 	  tagInfo[mainloop].haveAlbumPeak = 0;
 	  tagInfo[mainloop].haveTrackGain = 0;
@@ -1873,7 +1929,6 @@ int main(int argc, char **argv) {
 #ifdef AACGAIN
         AACGainHandle aacH = aacInfo[mainloop];
 #endif
-        memset(&mp, 0, sizeof(mp));
 
 	  // if the entire Album requires some kind of recalculation, then each track needs it
 	  tagInfo[mainloop].recalc |= albumRecalc; 
@@ -1992,6 +2047,7 @@ int main(int argc, char **argv) {
 					} else {
 						fprintf(stderr,"No undo information in %s\n",argv[mainloop]);
 					}
+					gSuccess = 0;
 				}
 		  }
 	  }
@@ -2062,16 +2118,19 @@ int main(int argc, char **argv) {
 #else
 		  if ((inf == NULL)&&(tagInfo[mainloop].recalc > 0)) {
 #endif
-			  fprintf(stdout, "Can't open %s for reading\n",argv[mainloop]);
-              fflush(stdout);
+			  fprintf(stderr, "Can't open %s for reading\n",argv[mainloop]);
+			  fflush(stderr);
+			  gSuccess = 0;
 		  }
 		  else {
 #ifdef AACGAIN
             if (!aacH)
 #endif
-    			InitMP3(&mp);
+    			mh = mpg123_new(NULL, NULL);
+				mpg123_param(mh, MPG123_ADD_FLAGS, MPG123_FORCE_FLOAT, 0.);
+				mpg123_open_feed(mh);
 			if (tagInfo[mainloop].recalc == 0) {
-				maxsample = tagInfo[mainloop].trackPeak * 32768.0;
+				maxsample = tagInfo[mainloop].trackPeak * 32767.0;
 				maxgain = tagInfo[mainloop].maxGain;
 				mingain = tagInfo[mainloop].minGain;
 				ok = !0;
@@ -2148,8 +2207,9 @@ int main(int argc, char **argv) {
 				if (!ok) {
 #endif
                     if (!BadLayer) {
-						fprintf(stdout,"Can't find any valid MP3 frames in file %s\n",argv[mainloop]);
-                        fflush(stdout);
+						fprintf(stderr,"Can't find any valid MP3 frames in file %s\n",argv[mainloop]);
+						fflush(stderr);
+						gSuccess = 0;
                     }
 				}
 				else {
@@ -2184,8 +2244,8 @@ int main(int argc, char **argv) {
 								(Xingcheck[0] == 'I' && Xingcheck[1] == 'n' && Xingcheck[2] == 'f' && Xingcheck[3] == 'o')) {
 							bitridx = (curframe[2] >> 4) & 0x0F;
 							if (bitridx == 0) {
-								fprintf(stdout, "%s is free format (not currently supported)\n",curfilename);
-								fflush(stdout);
+								fprintf(stderr, "%s is free format (not currently supported)\n",curfilename);
+								fflush(stderr);
 								ok = 0;
 							}
 							else {
@@ -2228,8 +2288,8 @@ int main(int argc, char **argv) {
 						while (ok) {
 							bitridx = (curframe[2] >> 4) & 0x0F;
 							if (bitridx == 0) {
-								fprintf(stdout,"%s is free format (not currently supported)\n",curfilename);
-								fflush(stdout);
+								fprintf(stderr,"%s is free format (not currently supported)\n",curfilename);
+								fflush(stderr);
 								ok = 0;
 							}
 							else {
@@ -2242,12 +2302,8 @@ int main(int argc, char **argv) {
 								nchan = (mode == 3) ? 1 : 2;
 
 								if (inbuffer >= bytesinframe) {
-									lSamp = lsamples;
-									rSamp = rsamples;
-									maxSamp = &maxsample;
 									maxGain = &maxgain;
 									minGain = &mingain;
-									procSamp = 0;
 									if ((tagInfo[mainloop].recalc & AMP_RECALC) || (tagInfo[mainloop].recalc & FULL_RECALC)) {
 #ifdef WIN32
 #ifndef __GNUC__
@@ -2259,7 +2315,26 @@ int main(int argc, char **argv) {
 												   think it's worth the trouble */
 #endif
 #endif
-											decodeSuccess = decodeMP3(&mp,curframe,bytesinframe,&nprocsamp);
+											size_t decbytes = 0;
+											unsigned char *decout;
+											/* Get gain values directly, not from decoder. */
+											scanFrameGain();
+											mpg123_feed(mh, curframe, bytesinframe);
+											decodeSuccess = mpg123_decode_frame(mh, NULL, &decout, &decbytes);
+											if(decodeSuccess == MPG123_NEW_FORMAT)
+											{
+												int enc = 0, channels = 0;
+												mpg123_getformat(mh, NULL, &channels, &enc);
+												if(enc != MPG123_ENC_FLOAT_32 || channels != nchan)
+												{
+													fprintf(stderr, "Unexpected format returned by libmpg123.\n");
+													exit(1);
+												}
+												decodeSuccess = mpg123_decode_frame(mh, NULL, &decout, &decbytes);
+											}
+											nprocsamp = decbytes / sizeof(float) / nchan;
+											convert_decout((float*)decout, nprocsamp, nchan, lsamples, rsamples);
+											maxsample = find_maxsample((float*)decout, nprocsamp*nchan, maxsample);
 #ifdef WIN32
 #ifndef __GNUC__
 										}
@@ -2273,12 +2348,12 @@ int main(int argc, char **argv) {
 #endif
 									} else { /* don't need to actually decode frame, 
 												just scan for min/max gain values */
-										decodeSuccess = !MP3_OK;
+										decodeSuccess = !MPG123_OK;
 										scanFrameGain();//curframe);
 									}
-									if (decodeSuccess == MP3_OK) {
+									if (decodeSuccess == MPG123_OK) {
 										if ((!maxAmpOnly)&&(tagInfo[mainloop].recalc & FULL_RECALC)) {
-											if (AnalyzeSamples(lsamples,rsamples,procSamp/nchan,nchan) == GAIN_ANALYSIS_ERROR) {
+											if (AnalyzeSamples(lsamples,rsamples,nprocsamp,nchan) == GAIN_ANALYSIS_ERROR) {
 												fprintf(stderr,"Error analyzing further samples (max time reached)          \n");
 												analysisError = !0;
 												ok = 0;
@@ -2315,8 +2390,9 @@ int main(int argc, char **argv) {
 					}
 
 					if (dBchange == GAIN_NOT_ENOUGH_SAMPLES) {
-						fprintf(stdout,"Not enough samples in %s to do analysis\n",argv[mainloop]);
-                        fflush(stdout);
+						fprintf(stderr,"Not enough samples in %s to do analysis\n",argv[mainloop]);
+                        			fflush(stderr);
+						gSuccess = 0;
 						numFiles--;
 					}
 					else {
@@ -2430,7 +2506,8 @@ int main(int argc, char **argv) {
 #ifdef AACGAIN
             if (!aacH)
 #endif
-    			ExitMP3(&mp);
+			mpg123_delete(mh);
+			mh = NULL;
 			fflush(stderr);
 			fflush(stdout);
 			if (inf)
@@ -2456,8 +2533,8 @@ int main(int argc, char **argv) {
 		}
 
 		if (dBchange == GAIN_NOT_ENOUGH_SAMPLES) {
-			fprintf(stdout,"Not enough samples in mp3 files to do analysis\n");
-            fflush(stdout);
+			fprintf(stderr,"Not enough samples in mp3 files to do analysis\n");
+			fflush(stderr);
 		}
 		else {
 			Float_t maxmaxsample;

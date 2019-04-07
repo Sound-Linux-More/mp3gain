@@ -1254,6 +1254,20 @@ int WriteMP3GainID3Tag(char *filename, struct MP3GainTagInfo *info, int saveTime
 	}
 
 	/* Replace original file. */
+#ifdef WIN32
+	/* "rename" function in WIN32 does _not_ replace existing destination file, so
+	   we have to manually remove it first */
+	if (remove(filename) != 0) {
+		passError(MP3GAIN_UNSPECIFED_ERROR, 5, "Can not rename ", tmpfilename, " to ", filename, "\n");
+		ret = M3G_ERR_RENAME_TMP;
+		/* Do NOT remove the temp file itself, just in case the "remove(filename)" function
+		   only _temporarily_ failed, and the original file will disappear soon, such as when
+		   all handles on the file are closed. If it does disappear and we also
+		   delete the tmp file, then the file is completely gone... */
+		free(tmpfilename);
+	}
+#endif
+
 	ret = 1;
 	if (rename(tmpfilename, filename)) {
 		remove(tmpfilename);

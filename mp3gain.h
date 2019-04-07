@@ -29,7 +29,7 @@
 #ifndef MP3GAIN_H
 #define MP3GAIN_H
 
-#define MP3GAIN_VERSION "1.5.0"
+#define MP3GAIN_VERSION "1.5.1"
 /* jzitt: moved from mp3gain.c */
 
 #define M3G_ERR_CANT_MODIFY_FILE -1

@@ -35,8 +35,8 @@ LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_US
 //
 
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION 1,5,0,0
- PRODUCTVERSION 1,5,0,0
+ FILEVERSION 1,5,0,1
+ PRODUCTVERSION 1,5,0,1
  FILEFLAGSMASK 0x3fL
 #ifdef _DEBUG
  FILEFLAGS 0x1L
@@ -56,8 +56,8 @@ BEGIN
             VALUE "FileDescription", "mp3 volume normalizer\0"
             VALUE "LegalCopyright", "Copyright © 2001-2009 Glen Sawyer\0"
             VALUE "OriginalFilename", "mp3gain.exe\0"
-            VALUE "FileVersion", "1, 5, 0, 0\0"
-            VALUE "ProductVersion", "1, 5, 0, 0\0"
+            VALUE "FileVersion", "1, 5, 0, 1\0"
+            VALUE "ProductVersion", "1, 5, 0, 1\0"
         END
     END
     BLOCK "VarFileInfo"

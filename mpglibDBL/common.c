@@ -1,4 +1,4 @@
-/* $Id: common.c,v 1.3 2003/08/12 00:02:55 snelg Exp $ */
+/* $Id: common.c,v 1.4 2005/01/18 15:56:45 snelg Exp $ */
 
 #ifdef HAVE_CONFIG_H
 #include <config.h>
@@ -160,7 +160,7 @@ int decode_header(struct frame *fr,unsigned long newhead)
       fprintf(stderr,"Stream error\n");
       fclose(stdout);
       fclose(stderr);
-      exit(0);
+      exit(1);
     }
     if(fr->mpeg25) {
       fr->sampling_frequency = 6 + ((newhead>>10)&0x3);

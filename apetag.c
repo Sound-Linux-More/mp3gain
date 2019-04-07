@@ -5,13 +5,15 @@
 #include <stdio.h>
 #include <memory.h>
 #include <string.h>
+#include <fcntl.h>
 #ifdef WIN32
 #include <io.h>
-#include <fcntl.h>
+#else
+#include <unistd.h>
 #endif
 
 #ifndef WIN32
-#define stricmp strcasecmp
+#define _stricmp strcasecmp
 #endif /* WIN32 */
 
 int ReadMP3ID3v1Tag(FILE *fi, unsigned char **tagbuff, long *tag_offset) {
@@ -209,19 +211,19 @@ int ReadMP3APETag ( FILE *fp,  struct MP3GainTagInfo *info, struct APETagStruct 
 		is_info = 0;
 
 		{
-            if (!stricmp (name, "REPLAYGAIN_TRACK_GAIN")) {
+            if (!_stricmp (name, "REPLAYGAIN_TRACK_GAIN")) {
                 info->haveTrackGain = !0;
                 info->trackGain = atof(value);
-            } else if (!stricmp(name,"REPLAYGAIN_TRACK_PEAK")) {
+            } else if (!_stricmp(name,"REPLAYGAIN_TRACK_PEAK")) {
                 info->haveTrackPeak = !0;
                 info->trackPeak = atof(value);
-            } else if (!stricmp(name,"REPLAYGAIN_ALBUM_GAIN")) {
+            } else if (!_stricmp(name,"REPLAYGAIN_ALBUM_GAIN")) {
                 info->haveAlbumGain = !0;
                 info->albumGain = atof(value);
-            } else if (!stricmp(name,"REPLAYGAIN_ALBUM_PEAK")) {
+            } else if (!_stricmp(name,"REPLAYGAIN_ALBUM_PEAK")) {
                 info->haveAlbumPeak = !0;
                 info->albumPeak = atof(value);
-            } else if (!stricmp(name,"MP3GAIN_UNDO")) {
+            } else if (!_stricmp(name,"MP3GAIN_UNDO")) {
 				/* value should be something like "+003,+003,W" */
                 info->haveUndo = !0;
                 vp = value;
@@ -238,7 +240,7 @@ int ReadMP3APETag ( FILE *fp,  struct MP3GainTagInfo *info, struct APETagStruct 
                 } else {
                     info->undoWrap = 0;
                 }
-            } else if (!stricmp(name,"MP3GAIN_MINMAX")) {
+            } else if (!_stricmp(name,"MP3GAIN_MINMAX")) {
 				/* value should be something like "001,153" */
                 info->haveMinMaxGain = !0;
                 vp = value;
@@ -249,7 +251,7 @@ int ReadMP3APETag ( FILE *fp,  struct MP3GainTagInfo *info, struct APETagStruct 
 				memcpy(tmpString,vp,3);
 				tmpString[3] = '\0';
                 info->maxGain = atoi(tmpString);
-            } else if (!stricmp(name,"MP3GAIN_ALBUM_MINMAX")) {
+            } else if (!_stricmp(name,"MP3GAIN_ALBUM_MINMAX")) {
 				/* value should be something like "001,153" */
                 info->haveAlbumMinMaxGain = !0;
                 vp = value;
@@ -325,89 +327,32 @@ int truncate_file (char *filename, long truncLength) {
 
 #else
 
-/* if other OS specific truncate commands are available, this would be a good place to put them... */
+	int fd;
 
-    FILE *orig;
-    FILE *tmp;
-    char *newfilename;
-    char buff[10000];
-    long actualRead;
-    long byteCount;
-    
-	byteCount = strlen(filename);
-    newfilename = (char *)malloc(byteCount + 5);
-
-    strcpy(newfilename,filename);
-	if ((filename[byteCount-3] == 'T' || filename[byteCount-3] == 't') &&
-			(filename[byteCount-2] == 'M' || filename[byteCount-2] == 'm') &&
-			(filename[byteCount-1] == 'P' || filename[byteCount-1] == 'p')) {
-		strcat(newfilename,".TMP");
-	}
-	else {
-		newfilename[byteCount-3] = 'T';
-		newfilename[byteCount-2] = 'M';
-		newfilename[byteCount-1] = 'P';
-	}
-
-    orig = fopen(filename,"rb");
-    if (orig == NULL)
-        return 0;
-    tmp = fopen(newfilename,"wb");
-    if (tmp == NULL) {
-        fclose(orig);
-        return 0;
-    }
-
-    byteCount = truncLength;
-
-    while (byteCount > 0) {
-        if (byteCount > 10000) {
-            actualRead = fread(buff,1,10000,orig);
-        } else {
-            actualRead = fread(buff,1,byteCount,orig);
-        }
-        if (actualRead > 0) {
-            fwrite(buff,1,actualRead,tmp);
-        } else {
-            break;
-        }
-        byteCount -= actualRead;
-    }
-    fclose(orig);
-
-    fflush(tmp);
-    byteCount = ftell(tmp);
-    fclose(tmp);
-    if (byteCount != truncLength) {
-        deleteFile(newfilename);
-        free(newfilename);
-		passError( MP3GAIN_UNSPECIFED_ERROR, 3,
-            "Not enough temp space on disk to modify ", filename, 
-            "\nPlease free some space\n");
-        return 0;
-    }
-    
-	if (deleteFile(filename)) {
-        deleteFile(newfilename); /* get rid of temp file */
-        free(newfilename);
-		passError( MP3GAIN_UNSPECIFED_ERROR, 3,
-            "Can't open ", filename, " for modifying\n");
+	fd = open(filename, O_RDWR);
+	if (fd < 0)
+		return 0;
+	if (ftruncate(fd, truncLength)) {
+		close(fd);
+		passError( MP3GAIN_UNSPECIFED_ERROR, 3, "Could not truncate ",
+			filename, "\n");
 		return 0;
 	}
-	if (moveFile(newfilename, filename)) {
-        free(newfilename);
-		passError( MP3GAIN_UNSPECIFED_ERROR, 9,
-            "Problem re-naming ", newfilename, " to ", filename, 
-            "\nThe mp3 was correctly modified, but you will need to re-name ", 
-            newfilename, " to ", filename, 
-            " yourself.\n");
-		return 0;
-	};
-    free(newfilename);
-    return 1;
+	close(fd);
+
+	return 1;
+
 #endif
 }
 
+
+/**
+ * Read gain information from an APE tag.
+ *
+ * Look for an APE tag at the end of the MP3 file, and extract
+ * gain information from it. Any ID3v1 or Lyrics3v2 tags at the end
+ * of the file are read and stored, but not processed.
+ */
 int ReadMP3GainAPETag (char *filename, struct MP3GainTagInfo *info, struct FileTagsStruct *fileTags) {
     FILE *fi;
     long tag_offset, offs_bk;
@@ -435,7 +380,13 @@ int ReadMP3GainAPETag (char *filename, struct MP3GainTagInfo *info, struct FileT
     return 1;
 };
 
-/* need to have already called ReadMP3GainAPETag and filled in the info and fileTags structures */
+
+/**
+ * (Re-)Write gain information to an APEv2 tag.
+ *
+ * You need to have already called ReadMP3GainTag and filled in the info
+ * and fileTags structures.
+ */
 int WriteMP3GainAPETag (char *filename, struct MP3GainTagInfo *info, struct FileTagsStruct *fileTags, int saveTimeStamp) {
 	FILE *outputFile;
 	unsigned long newTagLength;
@@ -684,6 +635,10 @@ int WriteMP3GainAPETag (char *filename, struct MP3GainTagInfo *info, struct File
     return 1;
 };
 
+
+/**
+ * Remove gain information from the APE tag.
+ */
 int RemoveMP3GainAPETag (char *filename, int saveTimeStamp) {
 	struct MP3GainTagInfo info;
 	struct FileTagsStruct fileTags;

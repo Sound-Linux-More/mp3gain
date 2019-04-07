@@ -29,13 +29,17 @@
 #ifndef MP3GAIN_H
 #define MP3GAIN_H
 
-#define MP3GAIN_VERSION "1.4.6"
+#define MP3GAIN_VERSION "1.5.0"
 /* jzitt: moved from mp3gain.c */
 
 #define M3G_ERR_CANT_MODIFY_FILE -1
 #define M3G_ERR_CANT_MAKE_TMP -2
 #define M3G_ERR_NOT_ENOUGH_TMP_SPACE -3
 #define M3G_ERR_RENAME_TMP -4
+#define M3G_ERR_FILEOPEN   -5
+#define M3G_ERR_READ       -6
+#define M3G_ERR_WRITE      -7
+#define M3G_ERR_TAGFORMAT  -8
 
 #include "rg_error.h"
 

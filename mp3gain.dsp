@@ -157,6 +157,10 @@ SOURCE=.\apetag.c
 # End Source File
 # Begin Source File
 
+SOURCE=.\id3tag.c
+# End Source File
+# Begin Source File
+
 SOURCE=.\mpglibDBL\common.c
 
 !IF  "$(CFG)" == "mp3gain - Win32 Release"
@@ -307,6 +311,10 @@ SOURCE=.\mpglibDBL\tabinit.c
 # Begin Source File
 
 SOURCE=.\apetag.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\id3tag.h
 # End Source File
 # Begin Source File
 

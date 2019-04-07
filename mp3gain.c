@@ -1187,7 +1187,7 @@ void errUsage(char *progname) {
 	fprintf(stderr,"  --use %c? or %ch for a full list of options\n",SWITCH_CHAR,SWITCH_CHAR);
     fclose(stdout);
     fclose(stderr);
-	exit(0);
+	exit(1);
 }
 
 
@@ -1420,7 +1420,7 @@ int main(int argc, char **argv) {
 							whichChannel = atoi(argv[i+1]);
 							i++;
 							fileStart++;
-							directGainVal = atoi(argv[i+2]);
+							directGainVal = atoi(argv[i+1]);
 							i++;
 							fileStart++;
 						}
@@ -1541,7 +1541,7 @@ int main(int argc, char **argv) {
 	fileok = (int *)malloc(sizeof(int) * argc);
     /* now stored in tagInfo---  maxgain = malloc(sizeof(unsigned char) * argc); */
     /* now stored in tagInfo---  mingain = malloc(sizeof(unsigned char) * argc); */
-    tagInfo = (struct MP3GainTagInfo *)malloc(sizeof(struct MP3GainTagInfo) * argc);
+    tagInfo = (struct MP3GainTagInfo *)calloc(argc, sizeof(struct MP3GainTagInfo));
 	fileTags = (struct FileTagsStruct *)malloc(sizeof(struct FileTagsStruct) * argc);
 
     if (databaseFormat) {
@@ -1659,6 +1659,8 @@ int main(int argc, char **argv) {
 	}
 
     for (mainloop = fileStart; mainloop < argc; mainloop++) {
+        memset(&mp, 0, sizeof(mp));
+
 	  // if the entire Album requires some kind of recalculation, then each track needs it
 	  tagInfo[mainloop].recalc |= albumRecalc; 
 
@@ -1973,7 +1975,7 @@ int main(int argc, char **argv) {
 											fprintf(stderr,"Error analyzing %s. This mp3 has some very corrupt data.\n",curfilename);
 											fclose(stdout);
 											fclose(stderr);
-											exit(0);
+											exit(1);
 										}
 #endif
 #endif
@@ -2332,7 +2334,10 @@ int main(int argc, char **argv) {
 
     fclose(stdout);
     fclose(stderr);
-	exit(gSuccess);
+	if (gSuccess)
+		return 0;
+	else
+		return 1;
 }
 
 #endif /* asWIN32DLL */

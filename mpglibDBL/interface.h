@@ -20,21 +20,24 @@
 #define INTERFACE_H_INCLUDED
 
 #include "common.h"
-#include "..\gain_analysis.h"
+#include "../gain_analysis.h"
 
 #if defined(__cplusplus)
 extern "C" {
 #endif
 
-Float_t *lSamp;
-Float_t *rSamp;
-Float_t *maxSamp;
-unsigned char maxAmpOnly;
+extern Float_t *lSamp;
+extern Float_t *rSamp;
+extern Float_t *maxSamp;
+extern unsigned char *maxGain;
+extern unsigned char *minGain;
 
-int procSamp;
+extern unsigned char maxAmpOnly;
+
+extern int procSamp;
 
 BOOL InitMP3(PMPSTR mp);
-int	 decodeMP3(PMPSTR mp,unsigned char *inmemory,int inmemsize,char *outmemory,int outmemsize,int *done);
+int	 decodeMP3(PMPSTR mp,unsigned char *inmemory,int inmemsize,int *done);
 void ExitMP3(PMPSTR mp);
 
 /* added remove_buf to support mpglib seeking */

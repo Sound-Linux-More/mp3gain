@@ -1,6 +1,13 @@
+//{{NO_DEPENDENCIES}}
+// Microsoft Developer Studio generated include file.
+// Used by replaygainversion.rc
+
 /*
- *  ReplayGainAnalysis - analyzes input samples and give the recommended dB change
- *  Copyright (C) 2001 David Robinson and Glen Sawyer
+ *  ReplayGainAnalysis DLL Wrapper - DLL Wrapper for Glen Sawyer's headers
+ *  Copyright (C) 2002 John Zitterkopf (zitt@bigfoot.com) 
+ *                     (http://www.zittware.com)
+ *
+ *  These comments must remain intact in all copies of the source code.
  *
  *  This library is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU Lesser General Public
@@ -20,37 +27,25 @@
  *    -- blame him if you think the idea is flawed
  *  coding by Glen Sawyer (mp3gain@hotmail.com) 735 W 255 N, Orem, UT 84057-4505 USA
  *    -- blame him if you think this runs too slowly, or the coding is otherwise flawed
+ *  DLL Wrapper code for VC++5.0 by John Zitterkopf (zitt@bigfoot.com)
  *
  *  For an explanation of the concepts and the basic algorithms involved, go to:
  *    http://www.replaygain.org/
+ *
+ *  V1.0 - jzitt
+ *  * Based on V1.0 header source provided by Glen Sawyer
+ *  * Attempts to maintain some backward capability with V0.9 of the same source.
  */
 
-#ifndef GAIN_ANALYSIS_H
-#define GAIN_ANALYSIS_H
+//
 
-#include <stddef.h>
-
-#define GAIN_NOT_ENOUGH_SAMPLES  -24601
-#define GAIN_ANALYSIS_ERROR           0
-#define GAIN_ANALYSIS_OK              1
-
-#define INIT_GAIN_ANALYSIS_ERROR      0
-#define INIT_GAIN_ANALYSIS_OK         1
-
-#ifdef __cplusplus
-extern "C" {
+// Next default values for new objects
+// 
+#ifdef APSTUDIO_INVOKED
+#ifndef APSTUDIO_READONLY_SYMBOLS
+#define _APS_NEXT_RESOURCE_VALUE        101
+#define _APS_NEXT_COMMAND_VALUE         40001
+#define _APS_NEXT_CONTROL_VALUE         1000
+#define _APS_NEXT_SYMED_VALUE           101
 #endif
-
-typedef double  Float_t;         // Type used for filtering
-
-int     InitGainAnalysis ( long samplefreq );
-int     AnalyzeSamples   ( const Float_t* left_samples, const Float_t* right_samples, size_t num_samples, int num_channels );
-int		ResetSampleFrequency ( long samplefreq );
-Float_t   GetTitleGain     ( void );
-Float_t   GetAlbumGain     ( void );
-
-#ifdef __cplusplus
-}
 #endif
-
-#endif /* GAIN_ANALYSIS_H */

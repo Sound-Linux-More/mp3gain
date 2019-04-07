@@ -1,8 +1,4 @@
-#include "lame-analysis.h"
-
-#ifndef NOANALYSIS
-extern plotting_data *mpg123_pinfo;
-#endif
+#include "encoder.h"
 
 struct buf {
         unsigned char *pnt;

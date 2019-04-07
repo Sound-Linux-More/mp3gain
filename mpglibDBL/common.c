@@ -1,4 +1,4 @@
-/* $Id: common.c,v 1.1 2002/03/29 19:14:40 snelg Exp $ */
+/* $Id: common.c,v 1.28 2001/06/23 17:56:10 robert Exp $ */
 
 #ifdef HAVE_CONFIG_H
 #include <config.h>
@@ -7,6 +7,7 @@
 #include <ctype.h>
 #include <stdlib.h>
 #include <signal.h>
+#include <string.h>
 
 #ifdef HAVE_FCNTL_H
 #include <fcntl.h>
@@ -25,6 +26,10 @@
 #ifdef WITH_DMALLOC
 #include <dmalloc.h>
 #endif
+
+#ifdef __BEOS__
+#include <bsd_mem.h>
+#endif /* __BEOS__ */
 
 // In C++ the array first must be prototyped, why ?
 
@@ -153,7 +158,9 @@ int decode_header(struct frame *fr,unsigned long newhead)
     fr->lay = 4-((newhead>>17)&3);
     if( ((newhead>>10)&0x3) == 0x3) {
       fprintf(stderr,"Stream error\n");
-      exit(1);
+      fclose(stdout);
+      fclose(stderr);
+      exit(0);
     }
     if(fr->mpeg25) {
       fr->sampling_frequency = 6 + ((newhead>>10)&0x3);

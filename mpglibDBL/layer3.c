@@ -5,7 +5,7 @@
  * All rights reserved. See also 'README'
  */ 
 
-/* $Id: layer3.c,v 1.1 2002/03/29 19:14:40 snelg Exp $ */
+/* $Id: layer3.c,v 1.43 2001/06/04 10:01:35 afaber Exp $ */
 
 #ifdef HAVE_CONFIG_H
 # include <config.h>
@@ -14,7 +14,7 @@
 #include <stdlib.h>
 #include "common.h"
 #include "huffman.h"
-#include "lame-analysis.h"
+#include "encoder.h"
 #include "decode_i386.h"
 
 #ifdef WITH_DMALLOC
@@ -23,6 +23,9 @@
 
 #define MPEG1
 
+
+unsigned char *maxGain;
+unsigned char *minGain;
 
 static real ispow[8207];
 static real aa_ca[8],aa_cs[8];
@@ -351,12 +354,10 @@ static int III_get_side_info_1(struct III_sideinfo *si,int stereo,
        }
        {
 	 unsigned int qss = getbits_fast(8);
+     if ((unsigned char)qss > *maxGain) *maxGain = (unsigned char)qss;
+     if ((unsigned char)qss < *minGain) *minGain = (unsigned char)qss;
+
 	 gr_infos->pow2gain = gainpow2+256 - qss + powdiff;
-#ifndef NOANALYSIS
-	 if (mpg123_pinfo != NULL) {
-	   mpg123_pinfo->qss[gr][ch]=qss;
-	 }
-#endif
        }
        if(ms_stereo)
          gr_infos->pow2gain += 2;
@@ -379,10 +380,6 @@ static int III_get_side_info_1(struct III_sideinfo *si,int stereo,
          for(i=0;i<3;i++) {
 	   unsigned int sbg = (getbits_fast(3)<<3);
            gr_infos->full_gain[i] = gr_infos->pow2gain + sbg;
-#ifndef NOANALYSIS
-	   if (mpg123_pinfo != NULL)
-	     mpg123_pinfo->sub_gain[gr][ch][i]=sbg/8;
-#endif
 	 }
 
          if(gr_infos->block_type == 0) {
@@ -445,12 +442,10 @@ static int III_get_side_info_2(struct III_sideinfo *si,int stereo,
 		 return 0;
        }
        qss=getbits_fast(8);
+       if ((unsigned char)qss > *maxGain) *maxGain = (unsigned char)qss;
+       if ((unsigned char)qss < *minGain) *minGain = (unsigned char)qss;
+
        gr_infos->pow2gain = gainpow2+256 - qss + powdiff;
-#ifndef NOANALYSIS
-       if (mpg123_pinfo!=NULL) {
-	   mpg123_pinfo->qss[0][ch]=qss;
-       }
-#endif
 
 
        if(ms_stereo)
@@ -472,10 +467,6 @@ static int III_get_side_info_2(struct III_sideinfo *si,int stereo,
          for(i=0;i<3;i++) {
 	   unsigned int sbg = (getbits_fast(3)<<3);
            gr_infos->full_gain[i] = gr_infos->pow2gain + sbg;
-#ifndef NOANALYSIS
-	   if (mpg123_pinfo!=NULL)
-	     mpg123_pinfo->sub_gain[0][ch][i]=sbg/8;
-#endif
 
 	 }
 
@@ -1576,7 +1567,7 @@ int do_layer3_sideinfo(struct frame *fr)
 
 
 
-int do_layer3( PMPSTR mp,unsigned char *pcm_sample,int *pcm_point)
+int do_layer3( PMPSTR mp,int *pcm_point)
 {
   int gr, ch, ss,clip=0;
   int scalefacs[2][39]; /* max 39 for short[13][3] mode, mixed: 38, long: 22 */
@@ -1635,14 +1626,6 @@ int do_layer3( PMPSTR mp,unsigned char *pcm_sample,int *pcm_point)
 #endif
       }
 
-#ifndef NOANALYSIS
-      if (mpg123_pinfo!=NULL) {
-	int i;
-	mpg123_pinfo->sfbits[gr][0] = part2bits;
-	for (i=0; i<39; i++) 
-	  mpg123_pinfo->sfb_s[gr][0][i]=scalefacs[0][i];
-      }
-#endif
 
       if(III_dequantize_sample(hybridIn[0], scalefacs[0],gr_infos,sfreq,part2bits))
         return 0;
@@ -1659,14 +1642,6 @@ int do_layer3( PMPSTR mp,unsigned char *pcm_sample,int *pcm_point)
 	fprintf(stderr,"Not supported\n");
 #endif
       }
-#ifndef NOANALYSIS
-      if (mpg123_pinfo!=NULL) {
-	int i;
-	mpg123_pinfo->sfbits[gr][1] = part2bits;
-	for (i=0; i<39; i++) 
-	  mpg123_pinfo->sfb_s[gr][1][i]=scalefacs[1][i];
-      }
-#endif
 
       if(III_dequantize_sample(hybridIn[1],scalefacs[1],gr_infos,sfreq,part2bits))
           return 0;
@@ -1712,72 +1687,6 @@ int do_layer3( PMPSTR mp,unsigned char *pcm_sample,int *pcm_point)
       }
     }
 
-#ifndef NOANALYSIS
-    if (mpg123_pinfo!=NULL) {
-    int i,sb;
-    float ifqstep;
-
-    mpg123_pinfo->bitrate = 
-      tabsel_123[fr->lsf][fr->lay-1][fr->bitrate_index];
-    mpg123_pinfo->sampfreq = freqs[sfreq];
-    mpg123_pinfo->emph = fr->emphasis;
-    mpg123_pinfo->crc = fr->error_protection;
-    mpg123_pinfo->padding = fr->padding;
-    mpg123_pinfo->stereo = fr->stereo;
-    mpg123_pinfo->js =   (fr->mode == MPG_MD_JOINT_STEREO);
-    mpg123_pinfo->ms_stereo = ms_stereo;
-    mpg123_pinfo->i_stereo = i_stereo;
-    mpg123_pinfo->maindata = sideinfo.main_data_begin;
-
-    for(ch=0;ch<stereo1;ch++) {
-      struct gr_info_s *gr_infos = &(sideinfo.ch[ch].gr[gr]);
-      mpg123_pinfo->big_values[gr][ch]=gr_infos->big_values;
-      mpg123_pinfo->scalefac_scale[gr][ch]=gr_infos->scalefac_scale;
-      mpg123_pinfo->mixed[gr][ch] = gr_infos->mixed_block_flag;
-      mpg123_pinfo->mpg123blocktype[gr][ch]=gr_infos->block_type;
-      mpg123_pinfo->mainbits[gr][ch] = gr_infos->part2_3_length;
-      mpg123_pinfo->preflag[gr][ch] = gr_infos->preflag;
-      if (gr==1) mpg123_pinfo->scfsi[ch] = gr_infos->scfsi;
-    }
-
-
-    for (ch=0;ch<stereo1;ch++) {
-      struct gr_info_s *gr_infos = &(sideinfo.ch[ch].gr[gr]);
-      ifqstep = ( mpg123_pinfo->scalefac_scale[gr][ch] == 0 ) ? .5 : 1.0;
-      if (2==gr_infos->block_type) {
-	for (i=0; i<3; i++) {
-	  for (sb=0; sb<12; sb++) {
-	    int j = 3*sb+i;
-	    /*
-           is_p = scalefac[sfb*3+lwin-gr_infos->mixed_block_flag]; 
-	    */
-	    /* scalefac was copied into mpg123_pinfo->sfb_s[] above */
-	    mpg123_pinfo->sfb_s[gr][ch][j] = -ifqstep*mpg123_pinfo->sfb_s[gr][ch][j-gr_infos->mixed_block_flag];
-	    mpg123_pinfo->sfb_s[gr][ch][j] -= 2*(mpg123_pinfo->sub_gain[gr][ch][i]);
-	  }
-	  mpg123_pinfo->sfb_s[gr][ch][3*sb+i] = - 2*(mpg123_pinfo->sub_gain[gr][ch][i]);
-	}
-      }else{
-	for (sb=0; sb<21; sb++) {
-	  /* scalefac was copied into mpg123_pinfo->sfb[] above */
-	  mpg123_pinfo->sfb[gr][ch][sb] = mpg123_pinfo->sfb_s[gr][ch][sb];
-	  if (gr_infos->preflag) mpg123_pinfo->sfb[gr][ch][sb] += pretab1[sb];
-	  mpg123_pinfo->sfb[gr][ch][sb] *= -ifqstep;
-	}
-	mpg123_pinfo->sfb[gr][ch][21]=0;
-      }
-    }
-
-
-    
-    for(ch=0;ch<stereo1;ch++) { 
-      int j=0;
-      for (sb=0;sb<SBLIMIT;sb++)
-	for(ss=0;ss<SSLIMIT;ss++,j++) 
-	  mpg123_pinfo->mpg123xr[gr][ch][j]=hybridIn[ch][sb][ss];
-    }
-  }
-#endif
 
 
     for(ch=0;ch<stereo1;ch++) {
@@ -1788,12 +1697,12 @@ int do_layer3( PMPSTR mp,unsigned char *pcm_sample,int *pcm_point)
 
     for(ss=0;ss<SSLIMIT;ss++) {
       if(single >= 0) {
-        clip += synth_1to1_mono(mp, hybridOut[0][ss],pcm_sample,pcm_point);
+        clip += synth_1to1_mono(mp, hybridOut[0][ss],pcm_point);
       }
       else {
         int p1 = *pcm_point;
-        clip += synth_1to1(mp, hybridOut[0][ss],0,pcm_sample,&p1);
-        clip += synth_1to1(mp, hybridOut[1][ss],1,pcm_sample,pcm_point);
+        clip += synth_1to1(mp, hybridOut[0][ss],0,&p1);
+        clip += synth_1to1(mp, hybridOut[1][ss],1,pcm_point);
       }
     }
   }

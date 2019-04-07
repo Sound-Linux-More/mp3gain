@@ -10,7 +10,7 @@
  * even for Intel processors.
  */
 
-/* $Id: decode_i386.c,v 1.1 2002/03/29 19:14:40 snelg Exp $ */
+/* $Id: decode_i386.c,v 1.15 2001/01/15 15:16:09 aleidinger Exp $ */
 
 #ifdef HAVE_CONFIG_H
 #include <config.h>
@@ -20,11 +20,12 @@
 # include <stdlib.h>
 # include <string.h>
 #else
-# ifndef HAVE_STRCHR
+/*# ifndef HAVE_STRCHR
 #  define strchr index
 #  define strrchr rindex
 # endif
 char *strchr (), *strrchr ();
+*/
 # ifndef HAVE_MEMCPY
 #  define memcpy(d, s, n) bcopy ((s), (d), (n))
 #  define memmove(d, s, n) bcopy ((s), (d), (n))
@@ -47,21 +48,27 @@ char *strchr (), *strrchr ();
 #include <dmalloc.h>
 #endif
 
-int synth_1to1_mono(PMPSTR mp, real *bandPtr,unsigned char *samples,int *pnt)
+Float_t *lSamp;
+Float_t *rSamp;
+Float_t *maxSamp;
+unsigned char maxAmpOnly;
+
+int procSamp;
+
+int synth_1to1_mono(PMPSTR mp, real *bandPtr,int *pnt)
 {
-  short samples_tmp[64];
   int ret;
   int pnt1 = 0;
 
-  ret = synth_1to1(mp,bandPtr,0,(unsigned char *) samples_tmp,&pnt1);
+  ret = synth_1to1(mp,bandPtr,0,&pnt1);
   *pnt += 64;
 
   return ret;
 }
 
-int synth_1to1(PMPSTR mp, real *bandPtr,int channel,unsigned char *out,int *pnt)
+int synth_1to1(PMPSTR mp, real *bandPtr,int channel,int *pnt)
 {
-  static const int step = 2;
+/*  static const int step = 2; */
   int bo;
   Float_t *dsamp;
   real mSamp = 0;

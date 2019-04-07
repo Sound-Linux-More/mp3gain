@@ -52,7 +52,7 @@
 /* IEEE754 compatible machine */
 #define TAKEHIRO_IEEE754_HACK 1
 
-#define HAVE_STRCHR
+/* #define HAVE_STRCHR */
 
 #ifndef HAVE_MEMCPY
 #define HAVE_MEMCPY

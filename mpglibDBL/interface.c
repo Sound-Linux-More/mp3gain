@@ -1,4 +1,4 @@
-/* $Id: interface.c,v 1.1 2002/03/29 19:14:40 snelg Exp $ */
+/* $Id: interface.c,v 1.37 2001/08/26 18:38:43 markt Exp $ */
 
 #ifdef HAVE_CONFIG_H
 # include <config.h>
@@ -6,6 +6,7 @@
 
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 
 #include "common.h"
 #include "interface.h"
@@ -134,7 +135,9 @@ static int read_buf_byte(PMPSTR mp)
 	        remove_buf(mp);
 		if(!mp->tail) {
 			fprintf(stderr,"Fatal error! tried to read past mp buffer\n");
-			exit(1);
+            fclose(stdout);
+            fclose(stderr);
+			exit(0);
 		}
 		pos = mp->tail->pos;
 	}
@@ -451,15 +454,9 @@ int sync_buffer(PMPSTR mp,int free_match)
 
 
 
-int decodeMP3( PMPSTR mp,unsigned char *in,int isize,char *out,
-		int osize,int *done)
+int decodeMP3( PMPSTR mp,unsigned char *in,int isize,int *done)
 {
 	int i,iret,bits,bytes;
-
-	if(osize < 4608) {
-		fprintf(stderr,"To less out space\n");
-		return MP3_ERR;
-	}
 
 	if(in) {
 		if(addbuf(mp,in,isize) == NULL) {
@@ -643,7 +640,7 @@ int decodeMP3( PMPSTR mp,unsigned char *in,int isize,char *out,
 			break;
 #endif
 			case 3:
-				if (do_layer3(mp,(unsigned char *) out,done)) {
+				if (do_layer3(mp,done)) {
 					iret = MP3_ERR;
 				}
 			break;

@@ -40,10 +40,10 @@ ifeq ($(OSTYPE),win)
 WINDRES = windres
 endif
 
-OBJS = src/mp3gain.o src/apetag.o src/id3tag.o src/gain_analysis.o src/rg_error.o
+OBJS=	mp3gain.o apetag.o id3tag.o gain_analysis.o rg_error.o
 
 ifeq ($(OSTYPE),win)
-RC_OBJ = src/VerInfo.o
+RC_OBJ = VerInfo.o
 endif
 
 all: mp3gain

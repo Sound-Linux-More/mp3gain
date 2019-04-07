@@ -628,7 +628,7 @@ void scanFrameGain() {
 #ifndef asWIN32DLL
 static
 #endif
-void changeGain(char *filename, int leftgainchange, int rightgainchange) {
+int changeGain(char *filename, int leftgainchange, int rightgainchange) {
   unsigned long ok;
   int mode;
   int crcflag;
@@ -657,7 +657,7 @@ void changeGain(char *filename, int leftgainchange, int rightgainchange) {
   NowWriting = !0;
 
   if ((leftgainchange == 0) && (rightgainchange == 0))
-	  return;
+	  return 0;
 
   gainchange[0] = leftgainchange;
   gainchange[1] = rightgainchange;
@@ -685,7 +685,7 @@ void changeGain(char *filename, int leftgainchange, int rightgainchange) {
 			inf = NULL;
             passError(MP3GAIN_UNSPECIFED_ERROR, 3,
                 "\nCan't open ", outfilename, " for temp writing\n");
-			return;
+			return M3G_ERR_CANT_MAKE_TMP;
 		} 
  
 	  }
@@ -699,7 +699,7 @@ void changeGain(char *filename, int leftgainchange, int rightgainchange) {
 		  fclose(outf);
 	  passError( MP3GAIN_UNSPECIFED_ERROR, 3,
           "\nCan't open ", filename, " for modifying\n");
-	  return;
+	  return M3G_ERR_CANT_MODIFY_FILE;
   }
   else {
 	writebuffercnt = 0;
@@ -980,14 +980,15 @@ void changeGain(char *filename, int leftgainchange, int rightgainchange) {
 			passError( MP3GAIN_UNSPECIFED_ERROR, 3,
                 "Not enough temp space on disk to modify ", filename, 
                 "\nEither free some space, or do not use \"temp file\" option\n");
-            return;
+            return M3G_ERR_NOT_ENOUGH_TMP_SPACE;
         }
         else {
 
 		    if (deleteFile(filename)) {
+				deleteFile(outfilename); //try to delete tmp file
 				passError( MP3GAIN_UNSPECIFED_ERROR, 3,
                     "Can't open ", filename, " for modifying\n");
-			    return;
+			    return M3G_ERR_CANT_MODIFY_FILE;
 		    }
 		    if (moveFile(outfilename, filename)) {
 				passError( MP3GAIN_UNSPECIFED_ERROR, 9,
@@ -995,7 +996,7 @@ void changeGain(char *filename, int leftgainchange, int rightgainchange) {
                     "\nThe mp3 was correctly modified, but you will need to re-name ", 
                     outfilename, " to ", filename, 
                     " yourself.\n");
-			    return;
+			    return M3G_ERR_RENAME_TMP;
 		    };
 		    if (saveTime)
 		       fileTime(filename, setStoredTime);
@@ -1012,6 +1013,8 @@ void changeGain(char *filename, int leftgainchange, int rightgainchange) {
   }
 
   NowWriting = 0;
+
+  return 0;
 }
 
 
@@ -1023,72 +1026,72 @@ void changeGainAndTag(char *filename, int leftgainchange, int rightgainchange, s
 	int curMax;
 
 	if (leftgainchange != 0 || rightgainchange != 0) {
-		changeGain(filename,leftgainchange,rightgainchange);
-		if (!tag->haveUndo) {
-			tag->undoLeft = 0;
-			tag->undoRight = 0;
-		}
-		tag->dirty = !0;
-		tag->undoRight -= rightgainchange;
-		tag->undoLeft -= leftgainchange;
-		tag->undoWrap = wrapGain;
+		if (!changeGain(filename,leftgainchange,rightgainchange)) {
+			if (!tag->haveUndo) {
+				tag->undoLeft = 0;
+				tag->undoRight = 0;
+			}
+			tag->dirty = !0;
+			tag->undoRight -= rightgainchange;
+			tag->undoLeft -= leftgainchange;
+			tag->undoWrap = wrapGain;
 
-		/* if undo == 0, then remove Undo tag */
-		tag->haveUndo = !0;
-/* on second thought, don't remove it. Shortening the tag causes full file copy, which is slow so we avoid it if we can
-		tag->haveUndo = 
-			((tag->undoRight != 0) || 
-			 (tag->undoLeft != 0));
-*/
+			/* if undo == 0, then remove Undo tag */
+			tag->haveUndo = !0;
+	/* on second thought, don't remove it. Shortening the tag causes full file copy, which is slow so we avoid it if we can
+			tag->haveUndo = 
+				((tag->undoRight != 0) || 
+				 (tag->undoLeft != 0));
+	*/
 
-		if (leftgainchange == rightgainchange) { /* don't screw around with other fields if mis-matched left/right */
-			dblGainChange = leftgainchange * 1.505; /* approx. 5 * log10(2) */
-			if (tag->haveTrackGain) {
-				tag->trackGain -= dblGainChange;
-			}
-			if (tag->haveTrackPeak) {
-				tag->trackPeak *= pow(2.0,(double)(leftgainchange)/4.0);
-			}
-			if (tag->haveAlbumGain) {
-				tag->albumGain -= dblGainChange;
-			}
-			if (tag->haveAlbumPeak) {
-				tag->albumPeak *= pow(2.0,(double)(leftgainchange)/4.0);
-			}
-			if (tag->haveMinMaxGain) {
-				curMin = tag->minGain;
-				curMax = tag->maxGain;
-				curMin += leftgainchange;
-				curMax += leftgainchange;
-				if (wrapGain) {
-					if (curMin < 0 || curMin > 255 || curMax < 0 || curMax > 255) {
-						/* we've lost the "real" min or max because of wrapping */
-						tag->haveMinMaxGain = 0;
-					}
-				} else {
-                    tag->minGain = tag->minGain == 0 ? 0 : curMin < 0 ? 0 : curMin > 255 ? 255 : curMin;
-					tag->maxGain = curMax < 0 ? 0 : curMax > 255 ? 255 : curMax;
+			if (leftgainchange == rightgainchange) { /* don't screw around with other fields if mis-matched left/right */
+				dblGainChange = leftgainchange * 1.505; /* approx. 5 * log10(2) */
+				if (tag->haveTrackGain) {
+					tag->trackGain -= dblGainChange;
 				}
-			}
-			if (tag->haveAlbumMinMaxGain) {
-				curMin = tag->albumMinGain;
-				curMax = tag->albumMaxGain;
-				curMin += leftgainchange;
-				curMax += leftgainchange;
-				if (wrapGain) {
-					if (curMin < 0 || curMin > 255 || curMax < 0 || curMax > 255) {
-						/* we've lost the "real" min or max because of wrapping */
-						tag->haveAlbumMinMaxGain = 0;
-					}
-				} else {
-                    tag->albumMinGain = tag->albumMinGain == 0 ? 0 : curMin < 0 ? 0 : curMin > 255 ? 255 : curMin;
-					tag->albumMaxGain = curMax < 0 ? 0 : curMax > 255 ? 255 : curMax;
+				if (tag->haveTrackPeak) {
+					tag->trackPeak *= pow(2.0,(double)(leftgainchange)/4.0);
 				}
-			}
-		}
-		WriteMP3GainAPETag(filename, tag, fileTag, saveTime);
-
-	}
+				if (tag->haveAlbumGain) {
+					tag->albumGain -= dblGainChange;
+				}
+				if (tag->haveAlbumPeak) {
+					tag->albumPeak *= pow(2.0,(double)(leftgainchange)/4.0);
+				}
+				if (tag->haveMinMaxGain) {
+					curMin = tag->minGain;
+					curMax = tag->maxGain;
+					curMin += leftgainchange;
+					curMax += leftgainchange;
+					if (wrapGain) {
+						if (curMin < 0 || curMin > 255 || curMax < 0 || curMax > 255) {
+							/* we've lost the "real" min or max because of wrapping */
+							tag->haveMinMaxGain = 0;
+						}
+					} else {
+						tag->minGain = tag->minGain == 0 ? 0 : curMin < 0 ? 0 : curMin > 255 ? 255 : curMin;
+						tag->maxGain = curMax < 0 ? 0 : curMax > 255 ? 255 : curMax;
+					}
+				}
+				if (tag->haveAlbumMinMaxGain) {
+					curMin = tag->albumMinGain;
+					curMax = tag->albumMaxGain;
+					curMin += leftgainchange;
+					curMax += leftgainchange;
+					if (wrapGain) {
+						if (curMin < 0 || curMin > 255 || curMax < 0 || curMax > 255) {
+							/* we've lost the "real" min or max because of wrapping */
+							tag->haveAlbumMinMaxGain = 0;
+						}
+					} else {
+						tag->albumMinGain = tag->albumMinGain == 0 ? 0 : curMin < 0 ? 0 : curMin > 255 ? 255 : curMin;
+						tag->albumMaxGain = curMax < 0 ? 0 : curMax > 255 ? 255 : curMax;
+					}
+				}
+			} // if (leftgainchange == rightgainchange ...
+			WriteMP3GainAPETag(filename, tag, fileTag, saveTime);
+		} // if (!changeGain(filename ...
+	}// if (leftgainchange !=0 ...
 
 }
 
